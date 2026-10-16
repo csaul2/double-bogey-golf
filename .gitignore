@@ -37,5 +37,9 @@ yarn-error.*
 *.tsbuildinfo
 
 # generated native folders
-/ios
+# /ios (tracked so iOS 17.0 deployment target & workspace configuration are preserved)
 /android
+ios/Pods/
+ios/build/
+ios/DerivedData/
+

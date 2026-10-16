@@ -13,10 +13,10 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "start": "NODE_OPTIONS='--require ./node-compat.js' expo start",
+    "android": "NODE_OPTIONS='--require ./node-compat.js' expo start --android",
+    "ios": "NODE_OPTIONS='--require ./node-compat.js' expo start --ios",
+    "web": "NODE_OPTIONS='--require ./node-compat.js' expo start --web"
   },
   "private": true
 }
