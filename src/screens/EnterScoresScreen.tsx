@@ -19,7 +19,15 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
   onOpenStandings,
   onOpenAdmin,
 }) => {
-  const { state, setHoleScore, createGroup, updateGroupHole } = useTournament();
+  const {
+    state,
+    setHoleScore,
+    createGroup,
+    updateGroupHole,
+    syncStatus,
+    pendingSyncCount,
+    manualSync,
+  } = useTournament();
 
   const activeRound = useMemo(
     () => state.rounds.find((r) => r.status === 'active') || state.rounds[0],
@@ -172,7 +180,31 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
       {/* Top Banner */}
       <View style={styles.topHeader}>
         <View style={styles.headerInfo}>
-          <Text style={styles.eventTitle}>{activeRound?.name || 'Current Round'}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={styles.eventTitle}>{activeRound?.name || 'Current Round'}</Text>
+            <TouchableOpacity
+              style={[
+                styles.syncBadge,
+                syncStatus === 'synced'
+                  ? styles.syncBadgeSynced
+                  : syncStatus === 'syncing'
+                  ? styles.syncBadgeSyncing
+                  : styles.syncBadgeOffline,
+              ]}
+              onPress={manualSync}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.syncBadgeText}>
+                {syncStatus === 'synced'
+                  ? '● Synced'
+                  : syncStatus === 'syncing'
+                  ? '🔄 Syncing...'
+                  : syncStatus === 'offline'
+                  ? `● Offline (${pendingSyncCount})`
+                  : `● Pending (${pendingSyncCount})`}
+              </Text>
+            </TouchableOpacity>
+          </View>
           <Text style={styles.courseSubtitle}>
             {activeCourse?.name || 'Golf Course'}
           </Text>
@@ -563,6 +595,25 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '900',
+  },
+  syncBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  syncBadgeSynced: {
+    backgroundColor: '#065F46',
+  },
+  syncBadgeSyncing: {
+    backgroundColor: '#0284C7',
+  },
+  syncBadgeOffline: {
+    backgroundColor: '#854D0E',
+  },
+  syncBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
   },
   courseSubtitle: {
     color: '#A7F3D0',

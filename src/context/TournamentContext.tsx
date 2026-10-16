@@ -12,11 +12,15 @@ import {
   TournamentState,
 } from '../types/tournament';
 import { calculateAdjustedTargetQuota, calculatePlayerRoundStats } from '../utils/scoring';
+import { syncManager, SyncStatus } from '../services/syncManager';
 
 interface TournamentContextValue {
   state: TournamentState;
   isUnlocked: boolean;
   isAdminUnlocked: boolean;
+  syncStatus: SyncStatus;
+  pendingSyncCount: number;
+  manualSync: () => void;
   unlockTournament: (pin: string) => boolean;
   unlockAdmin: (pin: string) => boolean;
   lockAdmin: () => void;
@@ -70,6 +74,38 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [state, setState] = useState<TournamentState>(() => getInitialTournamentState());
   const [isUnlocked, setIsUnlocked] = useState<boolean>(true); // Default unlocked for immediate testing, with lock toggle available
   const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => syncManager.getStatus());
+  const [pendingSyncCount, setPendingSyncCount] = useState<number>(() => syncManager.getPendingCount());
+
+  React.useEffect(() => {
+    const unsubStatus = syncManager.onStatusChange((status, count) => {
+      setSyncStatus(status);
+      setPendingSyncCount(count);
+    });
+
+    const unsubScores = syncManager.onRemoteScoreReceived((remoteScore) => {
+      setState((prev) => {
+        const rounds = prev.rounds.map((r) => {
+          if (r.id !== remoteScore.roundId) return r;
+          const playerScores = { ...(r.scores[remoteScore.playerId] || {}) };
+          playerScores[remoteScore.holeNumber] = remoteScore.strokes;
+          return {
+            ...r,
+            scores: {
+              ...r.scores,
+              [remoteScore.playerId]: playerScores,
+            },
+          };
+        });
+        return { ...prev, rounds };
+      });
+    });
+
+    return () => {
+      unsubStatus();
+      unsubScores();
+    };
+  }, []);
 
   const unlockTournament = (pin: string): boolean => {
     if (pin.trim() === state.settings.tournamentPin || pin.trim() === state.settings.adminPin) {
@@ -119,6 +155,11 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       });
       return { ...prev, rounds };
     });
+
+    // Enqueue in offline sync manager
+    if (strokes !== null && strokes > 0) {
+      syncManager.queueScore(roundId, playerId, holeNumber, strokes);
+    }
   };
 
   const createGroup = (
@@ -370,6 +411,9 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         state,
         isUnlocked,
         isAdminUnlocked,
+        syncStatus,
+        pendingSyncCount,
+        manualSync: () => syncManager.flushQueue(),
         unlockTournament,
         unlockAdmin,
         lockAdmin,

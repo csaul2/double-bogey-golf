@@ -26,7 +26,7 @@ export const StandingsScreen: React.FC<StandingsScreenProps> = ({
   onEnterScores,
   onOpenAdmin,
 }) => {
-  const { state } = useTournament();
+  const { state, syncStatus, pendingSyncCount, manualSync } = useTournament();
   const [activeFlight, setActiveFlight] = useState<Flight>('A');
   const [inspectedPlayer, setInspectedPlayer] = useState<Player | null>(null);
 
@@ -62,7 +62,31 @@ export const StandingsScreen: React.FC<StandingsScreenProps> = ({
       {/* Clean Top Banner */}
       <View style={styles.topHeader}>
         <View style={styles.titleArea}>
-          <Text style={styles.eventTitle}>{state.settings.tournamentName}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={styles.eventTitle}>{state.settings.tournamentName}</Text>
+            <TouchableOpacity
+              style={[
+                styles.syncBadge,
+                syncStatus === 'synced'
+                  ? styles.syncBadgeSynced
+                  : syncStatus === 'syncing'
+                  ? styles.syncBadgeSyncing
+                  : styles.syncBadgeOffline,
+              ]}
+              onPress={manualSync}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.syncBadgeText}>
+                {syncStatus === 'synced'
+                  ? '● Synced'
+                  : syncStatus === 'syncing'
+                  ? '🔄 Syncing...'
+                  : syncStatus === 'offline'
+                  ? `● Offline (${pendingSyncCount})`
+                  : `● Pending (${pendingSyncCount})`}
+              </Text>
+            </TouchableOpacity>
+          </View>
           <Text style={styles.eventSubtitle}>
             {activeRound?.name || 'Tournament Standings'}
           </Text>
@@ -382,6 +406,25 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '900',
+  },
+  syncBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  syncBadgeSynced: {
+    backgroundColor: '#065F46',
+  },
+  syncBadgeSyncing: {
+    backgroundColor: '#0284C7',
+  },
+  syncBadgeOffline: {
+    backgroundColor: '#854D0E',
+  },
+  syncBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '800',
   },
   eventSubtitle: {
     color: '#A7F3D0',
