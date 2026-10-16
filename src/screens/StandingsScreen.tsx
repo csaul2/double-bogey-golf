@@ -62,8 +62,13 @@ export const StandingsScreen: React.FC<StandingsScreenProps> = ({
       {/* Clean Top Banner */}
       <View style={styles.topHeader}>
         <View style={styles.titleArea}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={styles.eventTitle}>{state.settings.tournamentName}</Text>
+          <Text style={styles.eventTitle} numberOfLines={1}>
+            {state.settings.tournamentName}
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3 }}>
+            <Text style={styles.eventSubtitle}>
+              {activeRound?.name || 'Tournament Standings'}
+            </Text>
             <TouchableOpacity
               style={[
                 styles.syncBadge,
@@ -87,9 +92,6 @@ export const StandingsScreen: React.FC<StandingsScreenProps> = ({
               </Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.eventSubtitle}>
-            {activeRound?.name || 'Tournament Standings'}
-          </Text>
         </View>
         <View style={styles.headerRightButtons}>
           <TouchableOpacity style={styles.scoreNavBtn} onPress={onEnterScores}>

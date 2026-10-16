@@ -180,8 +180,13 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
       {/* Top Banner */}
       <View style={styles.topHeader}>
         <View style={styles.headerInfo}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={styles.eventTitle}>{activeRound?.name || 'Current Round'}</Text>
+          <Text style={styles.eventTitle} numberOfLines={1}>
+            {activeRound?.name || 'Current Round'}
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3 }}>
+            <Text style={styles.courseSubtitle}>
+              {activeCourse?.name || 'Golf Course'}
+            </Text>
             <TouchableOpacity
               style={[
                 styles.syncBadge,
@@ -205,9 +210,6 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
               </Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.courseSubtitle}>
-            {activeCourse?.name || 'Golf Course'}
-          </Text>
         </View>
         <View style={styles.headerButtons}>
           <TouchableOpacity style={styles.standingsNavBtn} onPress={onOpenStandings}>

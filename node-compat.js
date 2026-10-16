@@ -15,3 +15,24 @@ if (!util.styleText) {
     return text;
   };
 }
+
+if (!util.parseEnv) {
+  util.parseEnv = function (content) {
+    const result = {};
+    if (typeof content !== 'string') return result;
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const m = trimmed.match(/^([\w.-]+)\s*=\s*(.*)?$/);
+      if (m) {
+        let val = (m[2] || '').trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        result[m[1]] = val;
+      }
+    }
+    return result;
+  };
+}
+
