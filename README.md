@@ -67,6 +67,7 @@ Ties in flight standings are broken hole-by-hole according to course **Hole Diff
 │       ├── StandingsScreen.tsx   # A & B flight leaderboards
 │       └── MasterSheetScreen.tsx # Multi-round admin ledger
 └── ios/                        # Native iOS Xcode workspace & CocoaPods (iOS 17.0+)
+└── android/                    # Native Android Studio project & Gradle scripts
 ```
 
 ---
@@ -74,21 +75,80 @@ Ties in flight standings are broken hole-by-hole according to course **Hole Diff
 ## 🚀 Running Locally
 
 ### Prerequisites
-* Node.js 20+
-* macOS with Xcode 16+ (for native iOS Simulator)
-* CocoaPods installed (`brew install cocoapods`)
+* **Node.js**: v20.13+ or v22+ LTS recommended ([nodejs.org](https://nodejs.org))
+* **Git**: Installed and configured
 
-### Development Commands
+---
+
+### 🍏 On macOS (iOS Simulator & Xcode)
 ```bash
-# Install dependencies
+# 1. Install dependencies
 npm install
 
-# Start Metro Bundler
-NODE_OPTIONS='--require ./node-compat.js' npx expo start
+# 2. Start Metro bundler
+npm start
 
-# Open in Native iOS Simulator / Xcode
+# 3. Open in iOS Simulator
+# Press 'i' in the terminal, or open the native workspace:
 open ios/golftournamentapp.xcworkspace
-
-# Open Web Preview
-NODE_OPTIONS='--require ./node-compat.js' npx expo start --web
 ```
+
+---
+
+### 🤖 Running on Android (macOS, Windows, or Linux)
+
+#### Option A: On an Android Physical Device (Fastest)
+1. Install **Expo Go** from the [Google Play Store](https://play.google.com/store/apps/details?id=host.exp.exponent).
+2. Start the dev server:
+   ```bash
+   npm start
+   ```
+3. Open the **Expo Go** app on your Android phone, tap **Scan QR Code**, and scan the QR code in your terminal. The app will build and open directly on your phone!
+
+#### Option B: On an Android Studio Emulator
+1. Install [Android Studio](https://developer.android.com/studio) and create an Android Virtual Device (AVD).
+2. Start the emulator.
+3. In your terminal, run:
+   ```bash
+   npm run android
+   ```
+   *(Or press `a` in an active `npm start` terminal).*
+
+#### Option C: Native Android Studio Build / Standalone APK
+Open the `android/` directory directly in Android Studio, or build a debug APK via terminal:
+```bash
+# macOS/Linux:
+cd android && ./gradlew assembleDebug
+
+# Windows (Command Prompt / PowerShell):
+cd android && gradlew.bat assembleDebug
+```
+The output APK is generated at `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+---
+
+### 🪟 Running on Windows
+
+A Windows user can develop and test this app using any of the following methods:
+
+#### 1. In a Web Browser (Zero Setup)
+```powershell
+npm install
+npm run web
+```
+Press `w` in the terminal or open `http://localhost:8081` in Chrome, Edge, or Brave.
+
+#### 2. On a Physical Android or iPhone (via Expo Go)
+* Even on Windows, you can test on an **iPhone** or **Android** phone!
+* Download **Expo Go** from the Apple App Store or Google Play Store.
+* Run `npm start` on Windows.
+* Connect your phone to the same Wi-Fi network and scan the QR code with the Camera app (iOS) or Expo Go app (Android).
+
+#### 3. On Android Emulator (Windows)
+1. Install Android Studio on Windows with the Android SDK & Virtual Device.
+2. In PowerShell / Command Prompt:
+   ```powershell
+   npm install
+   npm run android
+   ```
+
