@@ -76,6 +76,32 @@ const ROYAL_NEW_KENT: Course = {
   })),
 };
 
+export const TOWN_AND_COUNTRY: Course = {
+  id: 'course-town-and-country',
+  name: 'Town & Country Golf Links',
+  location: 'Woodstown, NJ',
+  holes: [
+    { holeNumber: 1, par: 4, difficultyRank: 9, yardage: 411 },
+    { holeNumber: 2, par: 4, difficultyRank: 3, yardage: 372 },
+    { holeNumber: 3, par: 4, difficultyRank: 7, yardage: 430 },
+    { holeNumber: 4, par: 3, difficultyRank: 15, yardage: 190 },
+    { holeNumber: 5, par: 4, difficultyRank: 13, yardage: 345 },
+    { holeNumber: 6, par: 4, difficultyRank: 11, yardage: 390 },
+    { holeNumber: 7, par: 4, difficultyRank: 1, yardage: 395 },
+    { holeNumber: 8, par: 3, difficultyRank: 17, yardage: 144 },
+    { holeNumber: 9, par: 5, difficultyRank: 5, yardage: 525 },
+    { holeNumber: 10, par: 5, difficultyRank: 4, yardage: 540 },
+    { holeNumber: 11, par: 4, difficultyRank: 6, yardage: 375 },
+    { holeNumber: 12, par: 4, difficultyRank: 10, yardage: 320 },
+    { holeNumber: 13, par: 3, difficultyRank: 12, yardage: 150 },
+    { holeNumber: 14, par: 5, difficultyRank: 8, yardage: 465 },
+    { holeNumber: 15, par: 4, difficultyRank: 16, yardage: 285 },
+    { holeNumber: 16, par: 3, difficultyRank: 14, yardage: 154 },
+    { holeNumber: 17, par: 4, difficultyRank: 18, yardage: 305 },
+    { holeNumber: 18, par: 4, difficultyRank: 2, yardage: 360 },
+  ],
+};
+
 // Players directly transcribed from Uncle Joe's official worksheets
 export const SEEDED_PLAYERS: Player[] = [
   // A-Group
@@ -210,7 +236,14 @@ export function getInitialTournamentState(): TournamentState {
       adminPin: '9999',
       targetAdjustmentPercent: 60,
     },
-    courses: [COLONIAL_HERITAGE, GH_GREEN, GH_GOLD, KISKIACK, ROYAL_NEW_KENT],
+    courses: [
+      COLONIAL_HERITAGE,
+      GH_GREEN,
+      GH_GOLD,
+      KISKIACK,
+      ROYAL_NEW_KENT,
+      TOWN_AND_COUNTRY,
+    ],
     players: SEEDED_PLAYERS,
     rounds: createSeedRounds(),
     groups: SEEDED_GROUPS,
