@@ -36,3 +36,8 @@ if (!util.parseEnv) {
   };
 }
 
+// Clean up NODE_OPTIONS so child processes (like Electron React Native DevTools)
+// don't inherit --require ./node-compat.js and crash.
+delete process.env.NODE_OPTIONS;
+
+

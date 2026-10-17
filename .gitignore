@@ -38,6 +38,9 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# electron devtools singletons
+Singleton*
+
 # generated native folders
 # /ios (tracked so iOS 17.0 deployment target & workspace configuration are preserved)
 ios/Pods/
