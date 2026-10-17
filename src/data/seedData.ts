@@ -191,6 +191,42 @@ const SEEDED_GROUPS = [
     currentHole: 7,
     createdAt: '2026-10-16T12:00:00Z',
   },
+  {
+    id: 'group-r2-cart2',
+    roundId: 'round-2',
+    name: 'Cart 2',
+    playerIds: ['p_et', 'p_scorecard', 'p_blake', 'p_tigger'],
+    scorerName: 'E.T.',
+    currentHole: 7,
+    createdAt: '2026-10-16T12:00:00Z',
+  },
+  {
+    id: 'group-r2-cart3',
+    roundId: 'round-2',
+    name: 'Cart 3',
+    playerIds: ['p_ow', 'p_sandbagger', 'p_rj', 'p_baldy'],
+    scorerName: 'O.W.',
+    currentHole: 7,
+    createdAt: '2026-10-16T12:00:00Z',
+  },
+  {
+    id: 'group-r2-cart4',
+    roundId: 'round-2',
+    name: 'Cart 4',
+    playerIds: ['p_creskin', 'p_anthony', 'p_todd', 'p_quirky'],
+    scorerName: 'Creskin',
+    currentHole: 7,
+    createdAt: '2026-10-16T12:00:00Z',
+  },
+  {
+    id: 'group-r2-cart5',
+    roundId: 'round-2',
+    name: 'Cart 5',
+    playerIds: ['p_werner', 'p_christopher', 'p_bigal', 'p_sean'],
+    scorerName: 'Werner',
+    currentHole: 7,
+    createdAt: '2026-10-16T12:00:00Z',
+  },
 ];
 
 export function getInitialTournamentState(): TournamentState {

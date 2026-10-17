@@ -26,7 +26,7 @@ export const StandingsScreen: React.FC<StandingsScreenProps> = ({
   onEnterScores,
   onOpenAdmin,
 }) => {
-  const { state, syncStatus, pendingSyncCount, manualSync } = useTournament();
+  const { state, syncStatus, pendingSyncCount, manualSync, advanceRound } = useTournament();
   const [activeFlight, setActiveFlight] = useState<Flight>('A');
   const [inspectedPlayer, setInspectedPlayer] = useState<Player | null>(null);
 
@@ -39,6 +39,23 @@ export const StandingsScreen: React.FC<StandingsScreenProps> = ({
     () => state.courses.find((c) => c.id === activeRound?.courseId),
     [state.courses, activeRound]
   );
+
+  const attendingPlayers = useMemo(
+    () => state.players.filter((p) => p.isActive !== false),
+    [state.players]
+  );
+
+  const isRound18HolesComplete = useMemo(() => {
+    if (attendingPlayers.length === 0 || !activeRound) return false;
+    return attendingPlayers.every((p) => {
+      const scores = activeRound.scores[p.id];
+      if (!scores) return false;
+      for (let h = 1; h <= 18; h++) {
+        if (scores[h] === undefined) return false;
+      }
+      return true;
+    });
+  }, [attendingPlayers, activeRound]);
 
   const flightPlayers = useMemo(
     () => state.players.filter((p) => p.flight === activeFlight && p.isActive !== false),
@@ -139,6 +156,26 @@ export const StandingsScreen: React.FC<StandingsScreenProps> = ({
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Round Complete Banner if all 18 holes are scored for all active players */}
+      {isRound18HolesComplete && (
+        <View style={styles.roundCompleteNotice}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.roundCompleteNoticeTitle}>
+              🏆 Round {activeRound?.roundNumber} Complete (All 18 Holes Scored)!
+            </Text>
+            <Text style={styles.roundCompleteNoticeSub}>
+              All active players finished. Ready to advance & calculate next day quotas.
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.advanceRoundBtn}
+            onPress={() => advanceRound(activeRound.id)}
+          >
+            <Text style={styles.advanceRoundBtnText}>Finalize & Advance ›</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Table Headers matching Uncle Joe's sheet: Tgt/Act, INS (Today), ONS (Overall) */}
       <View style={styles.tableHeaderRow}>
@@ -758,5 +795,38 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#059669',
     textAlign: 'right',
+  },
+  roundCompleteNotice: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    borderRadius: 10,
+    marginHorizontal: 16,
+    marginVertical: 10,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  roundCompleteNoticeTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  roundCompleteNoticeSub: {
+    fontSize: 11,
+    color: '#B45309',
+    marginTop: 2,
+  },
+  advanceRoundBtn: {
+    backgroundColor: '#065F46',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 7,
+  },
+  advanceRoundBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 12,
   },
 });

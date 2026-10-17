@@ -1,11 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTournament } from '../context/TournamentContext';
 import { Player } from '../types/tournament';
 import { calculateHolePoints, calculatePlayerRoundStats, formatSignedScore } from '../utils/scoring';
@@ -24,6 +27,7 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
     setHoleScore,
     createGroup,
     updateGroupHole,
+    advanceRound,
     syncStatus,
     pendingSyncCount,
     manualSync,
@@ -45,16 +49,34 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
     [state.groups, activeRound]
   );
 
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(() => {
-    return roundGroups[0]?.id || null;
-  });
-
-  const [isPickingCart, setIsPickingCart] = useState<boolean>(() => roundGroups.length === 0);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(() => roundGroups[0]?.id || null);
+  const [lockedCartId, setLockedCartId] = useState<string | null>(() => roundGroups[0]?.id || null);
+  const [isPickingCart, setIsPickingCart] = useState<boolean>(false);
   const [cartName, setCartName] = useState<string>('Cart 1');
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
+  const [customCartBuilderOpen, setCustomCartBuilderOpen] = useState<boolean>(false);
+  const [showSwitchModal, setShowSwitchModal] = useState<boolean>(false);
+  const [switchPinInput, setSwitchPinInput] = useState<string>('');
+  const [switchPinError, setSwitchPinError] = useState<string>('');
 
   // Draft scores keyed by `${playerId}_${holeNumber}`
   const [draftScores, setDraftScores] = useState<Record<string, number>>({});
+
+  // Restore locked cart from AsyncStorage per round
+  useEffect(() => {
+    if (!activeRound) return;
+    const key = `@dbt_locked_cart_${activeRound.id}`;
+    AsyncStorage.getItem(key).then((storedCartId) => {
+      if (storedCartId && roundGroups.some((g) => g.id === storedCartId)) {
+        setActiveGroupId(storedCartId);
+        setLockedCartId(storedCartId);
+        setIsPickingCart(false);
+      } else if (roundGroups.length > 0 && !activeGroupId) {
+        // If device has no locked cart yet, show the cart selector
+        setIsPickingCart(true);
+      }
+    });
+  }, [activeRound?.id, roundGroups]);
 
   const activeGroup = useMemo(
     () => roundGroups.find((g) => g.id === activeGroupId) || roundGroups[0],
@@ -68,12 +90,49 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
       .filter(Boolean) as Player[];
   }, [activeGroup, state.players]);
 
+  const attendingPlayers = useMemo(
+    () => state.players.filter((p) => p.isActive !== false),
+    [state.players]
+  );
+
+  const isRound18HolesComplete = useMemo(() => {
+    if (attendingPlayers.length === 0 || !activeRound) return false;
+    return attendingPlayers.every((p) => {
+      const scores = activeRound.scores[p.id];
+      if (!scores) return false;
+      for (let h = 1; h <= 18; h++) {
+        if (scores[h] === undefined) return false;
+      }
+      return true;
+    });
+  }, [attendingPlayers, activeRound]);
+
   const currentHoleNum = activeGroup?.currentHole || 1;
   const currentHoleConfig =
     activeCourse?.holes.find((h) => h.holeNumber === currentHoleNum) ||
     activeCourse?.holes[0];
 
-  const handleCreateCart = () => {
+  const handleSelectPreSetCart = async (groupId: string) => {
+    setActiveGroupId(groupId);
+    setLockedCartId(groupId);
+    setIsPickingCart(false);
+    if (activeRound) {
+      await AsyncStorage.setItem(`@dbt_locked_cart_${activeRound.id}`, groupId);
+    }
+  };
+
+  const handleUnlockAndSwitchCart = async () => {
+    setShowSwitchModal(false);
+    setSwitchPinInput('');
+    setSwitchPinError('');
+    setLockedCartId(null);
+    setIsPickingCart(true);
+    if (activeRound) {
+      await AsyncStorage.removeItem(`@dbt_locked_cart_${activeRound.id}`);
+    }
+  };
+
+  const handleCreateCart = async () => {
     if (!activeRound || selectedPlayerIds.length === 0) return;
     const created = createGroup(
       activeRound.id,
@@ -81,8 +140,11 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
       selectedPlayerIds
     );
     setActiveGroupId(created.id);
+    setLockedCartId(created.id);
     setIsPickingCart(false);
+    setCustomCartBuilderOpen(false);
     setSelectedPlayerIds([]);
+    await AsyncStorage.setItem(`@dbt_locked_cart_${activeRound.id}`, created.id);
   };
 
   const togglePickPlayer = (id: string) => {
@@ -224,79 +286,163 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
       {/* Cart Picker View vs Active Hole Scorer */}
       {isPickingCart || !activeGroup ? (
         <ScrollView style={styles.scroll} contentContainerStyle={styles.cartPickerContent}>
-          <View style={styles.cartCard}>
-            <Text style={styles.cartCardTitle}>Who Is In Your Cart?</Text>
-            <Text style={styles.cartCardSubtitle}>
-              Select 1 to 4 players you are scoring today.
+          <View style={styles.preRoundSetupHeader}>
+            <Text style={styles.preRoundSetupTitle}>Select Your Cart</Text>
+            <Text style={styles.preRoundSetupSubtitle}>
+              {activeRound?.name} • Choose your foursome to lock this device into scoring.
             </Text>
+          </View>
 
-            {/* List of Players with Big Checkboxes */}
-            <View style={styles.rosterList}>
-              {state.players.filter((p) => p.isActive !== false).map((player) => {
-                const isSelected = selectedPlayerIds.includes(player.id);
-                return (
-                  <TouchableOpacity
-                    key={player.id}
-                    style={[
-                      styles.playerCheckRow,
-                      isSelected && styles.playerCheckRowSelected,
-                    ]}
-                    onPress={() => togglePickPlayer(player.id)}
-                    activeOpacity={0.7}
-                  >
-                    <View
-                      style={[
-                        styles.bigCheckbox,
-                        isSelected && styles.bigCheckboxSelected,
-                      ]}
-                    >
-                      <Text style={styles.bigCheckboxCheck}>
-                        {isSelected ? '✓' : ''}
-                      </Text>
+          {/* List of Pre-Set Carts */}
+          {roundGroups.map((group) => {
+            const players = group.playerIds
+              .map((id) => state.players.find((p) => p.id === id))
+              .filter(Boolean) as Player[];
+
+            return (
+              <View key={group.id} style={styles.cartSelectCard}>
+                <View style={styles.cartSelectCardTop}>
+                  <Text style={styles.cartSelectCardTitle}>{group.name}</Text>
+                  <Text style={styles.cartSelectCardMeta}>
+                    {players.length}/4 Players • Starting Hole {group.currentHole || 1}
+                  </Text>
+                </View>
+
+                <View style={styles.cartSelectPlayersList}>
+                  {players.map((p) => (
+                    <View key={p.id} style={styles.cartSelectPlayerItem}>
+                      <View
+                        style={[
+                          styles.cartSelectAvatar,
+                          { backgroundColor: p.avatarColor || '#059669' },
+                        ]}
+                      >
+                        <Text style={styles.cartSelectAvatarText}>
+                          {p.name.slice(0, 2).toUpperCase()}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.cartSelectPlayerName}>{p.name}</Text>
+                        <Text style={styles.cartSelectPlayerSub}>
+                          {p.flight}-Flight • Target: {activeRound?.targetQuotas?.[p.id] ?? p.initialTargetQuota} pts
+                        </Text>
+                      </View>
                     </View>
+                  ))}
+                  {players.length === 0 && (
+                    <Text style={styles.emptyCartHint}>No players in this cart yet.</Text>
+                  )}
+                </View>
 
-                    <View style={{ flex: 1, paddingLeft: 12 }}>
-                      <Text style={styles.playerPickName}>{player.name}</Text>
-                      <Text style={styles.playerPickSub}>
-                        {player.flight}-Group • Target Quota: {player.initialTargetQuota} pts
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+                <TouchableOpacity
+                  style={styles.lockIntoCartBtn}
+                  onPress={() => handleSelectPreSetCart(group.id)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.lockIntoCartBtnText}>
+                    🔒 Lock Device & Score {group.name}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
 
-            {/* Big Action Button */}
+          {/* Custom Cart Toggle / Builder */}
+          {!customCartBuilderOpen ? (
             <TouchableOpacity
-              style={[
-                styles.startPlayingBtn,
-                selectedPlayerIds.length === 0 && { opacity: 0.4 },
-              ]}
-              disabled={selectedPlayerIds.length === 0}
-              onPress={handleCreateCart}
+              style={styles.openCustomBuilderBtn}
+              onPress={() => setCustomCartBuilderOpen(true)}
             >
-              <Text style={styles.startPlayingBtnText}>
-                {selectedPlayerIds.length === 0
-                  ? 'Select Players to Start'
-                  : `Start Scoring (${selectedPlayerIds.length} Players)`}
+              <Text style={styles.openCustomBuilderBtnText}>
+                + Build Custom Cart (Pick Players Manually)
               </Text>
             </TouchableOpacity>
+          ) : (
+            <View style={styles.cartCard}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <Text style={styles.cartCardTitle}>Build Custom Cart</Text>
+                <TouchableOpacity onPress={() => setCustomCartBuilderOpen(false)}>
+                  <Text style={styles.cancelCustomText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.cartCardSubtitle}>
+                Select 1 to 4 players you are scoring today.
+              </Text>
 
-            {roundGroups.length > 0 && (
+              <TextInput
+                style={styles.customCartNameInput}
+                placeholder="Cart Name (e.g. Cart 5)"
+                value={cartName}
+                onChangeText={setCartName}
+              />
+
+              {/* List of Players with Big Checkboxes */}
+              <View style={styles.rosterList}>
+                {state.players.filter((p) => p.isActive !== false).map((player) => {
+                  const isSelected = selectedPlayerIds.includes(player.id);
+                  return (
+                    <TouchableOpacity
+                      key={player.id}
+                      style={[
+                        styles.playerCheckRow,
+                        isSelected && styles.playerCheckRowSelected,
+                      ]}
+                      onPress={() => togglePickPlayer(player.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View
+                        style={[
+                          styles.bigCheckbox,
+                          isSelected && styles.bigCheckboxSelected,
+                        ]}
+                      >
+                        <Text style={styles.bigCheckboxCheck}>
+                          {isSelected ? '✓' : ''}
+                        </Text>
+                      </View>
+
+                      <View style={{ flex: 1, paddingLeft: 12 }}>
+                        <Text style={styles.playerPickName}>{player.name}</Text>
+                        <Text style={styles.playerPickSub}>
+                          {player.flight}-Group • Target Quota: {player.initialTargetQuota} pts
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
               <TouchableOpacity
-                style={styles.cancelCartBtn}
-                onPress={() => setIsPickingCart(false)}
+                style={[
+                  styles.startPlayingBtn,
+                  selectedPlayerIds.length === 0 && { opacity: 0.4 },
+                ]}
+                disabled={selectedPlayerIds.length === 0}
+                onPress={handleCreateCart}
               >
-                <Text style={styles.cancelCartBtnText}>
-                  Back to {roundGroups[0].name}
+                <Text style={styles.startPlayingBtnText}>
+                  {selectedPlayerIds.length === 0
+                    ? 'Select Players to Start'
+                    : `Start Scoring (${selectedPlayerIds.length} Players)`}
                 </Text>
               </TouchableOpacity>
-            )}
-          </View>
+            </View>
+          )}
+
+          {activeGroupId && (
+            <TouchableOpacity
+              style={styles.cancelCartBtn}
+              onPress={() => setIsPickingCart(false)}
+            >
+              <Text style={styles.cancelCartBtnText}>
+                Back to Scoring {activeGroup?.name}
+              </Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       ) : (
         <View style={styles.scorerView}>
-          {/* Active Cart & Hole Header */}
+          {/* Active Cart & Hole Header with Locked Status */}
           <View style={styles.holeHeaderStrip}>
             <View style={styles.holeHeaderLeft}>
               <Text style={styles.holeBigTitle}>
@@ -307,12 +453,34 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
               </Text>
             </View>
             <TouchableOpacity
-              style={styles.switchCartBtn}
-              onPress={() => setIsPickingCart(true)}
+              style={styles.lockedCartBadge}
+              onPress={() => setShowSwitchModal(true)}
+              activeOpacity={0.7}
             >
-              <Text style={styles.switchCartBtnText}>+ Switch Cart</Text>
+              <Text style={styles.lockedCartBadgeText}>🔒 {activeGroup.name}</Text>
+              <Text style={styles.lockedCartSubText}>Locked • Tap to Change</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Round Complete Banner if all 18 holes are scored for all active players */}
+          {isRound18HolesComplete && (
+            <View style={styles.roundCompleteNotice}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.roundCompleteNoticeTitle}>
+                  🏆 All 18 Holes Finished for Round {activeRound?.roundNumber}!
+                </Text>
+                <Text style={styles.roundCompleteNoticeSub}>
+                  All attending players scored. Advance round to calculate next day targets.
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.advanceRoundBtn}
+                onPress={() => advanceRound(activeRound.id)}
+              >
+                <Text style={styles.advanceRoundBtnText}>Finalize & Advance ›</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           {/* Quick Hole Jumper Pills (1 to 18) with completion indicator */}
           <View style={styles.jumperBar}>
@@ -572,6 +740,70 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
           </ScrollView>
         </View>
       )}
+
+      {/* Locked Cart Confirmation Modal */}
+      <Modal
+        visible={showSwitchModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSwitchModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>🔒 Cart Locked to {activeGroup?.name}</Text>
+            <Text style={styles.modalDesc}>
+              This device is currently locked to scoring {activeGroup?.name}. Switching carts should only be done if you need to score for a different group.
+            </Text>
+
+            <Text style={styles.pinPromptText}>
+              Enter Admin PIN ({state.settings.adminPin}) or tap Unlock:
+            </Text>
+            <TextInput
+              style={styles.modalPinInput}
+              placeholder="Admin PIN (Optional)"
+              secureTextEntry
+              keyboardType="number-pad"
+              value={switchPinInput}
+              onChangeText={(t) => {
+                setSwitchPinInput(t);
+                setSwitchPinError('');
+              }}
+            />
+            {switchPinError ? (
+              <Text style={styles.modalErrorText}>{switchPinError}</Text>
+            ) : null}
+
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => {
+                  setShowSwitchModal(false);
+                  setSwitchPinInput('');
+                  setSwitchPinError('');
+                }}
+              >
+                <Text style={styles.modalCancelBtnText}>Keep {activeGroup?.name}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalConfirmBtn}
+                onPress={() => {
+                  if (
+                    switchPinInput.trim() === '' ||
+                    switchPinInput.trim() === state.settings.adminPin ||
+                    switchPinInput.trim() === state.settings.tournamentPin
+                  ) {
+                    handleUnlockAndSwitchCart();
+                  } else {
+                    setSwitchPinError('Incorrect PIN. Use ' + state.settings.adminPin);
+                  }
+                }}
+              >
+                <Text style={styles.modalConfirmBtnText}>Unlock & Switch</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -1064,5 +1296,266 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '900',
     fontSize: 16,
+  },
+  preRoundSetupHeader: {
+    marginBottom: 16,
+  },
+  preRoundSetupTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  preRoundSetupSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 4,
+    fontWeight: '600',
+  },
+  cartSelectCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  cartSelectCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 10,
+    marginBottom: 12,
+  },
+  cartSelectCardTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#064E3B',
+  },
+  cartSelectCardMeta: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  cartSelectPlayersList: {
+    gap: 8,
+    marginBottom: 14,
+  },
+  cartSelectPlayerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  cartSelectAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartSelectAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  cartSelectPlayerName: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  cartSelectPlayerSub: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  cartSelectPlayerQuota: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  emptyCartHint: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontStyle: 'italic',
+    paddingVertical: 8,
+  },
+  lockIntoCartBtn: {
+    backgroundColor: '#064E3B',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  lockIntoCartBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 14,
+  },
+  openCustomBuilderBtn: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#94A3B8',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
+  },
+  openCustomBuilderBtnText: {
+    color: '#475569',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  cancelCustomText: {
+    color: '#DC2626',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  customCartNameInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  lockedCartBadge: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#10B981',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    alignItems: 'flex-end',
+  },
+  lockedCartBadgeText: {
+    color: '#065F46',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  lockedCartSubText: {
+    color: '#059669',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  roundCompleteNotice: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    borderRadius: 10,
+    marginHorizontal: 12,
+    marginTop: 8,
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  roundCompleteNoticeTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#92400E',
+  },
+  roundCompleteNoticeSub: {
+    fontSize: 11,
+    color: '#B45309',
+    marginTop: 1,
+  },
+  advanceRoundBtn: {
+    backgroundColor: '#065F46',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 6,
+  },
+  advanceRoundBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 11,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 380,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  modalDesc: {
+    fontSize: 13,
+    color: '#475569',
+    lineHeight: 19,
+    marginBottom: 14,
+  },
+  pinPromptText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 6,
+  },
+  modalPinInput: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    fontSize: 15,
+    marginBottom: 6,
+  },
+  modalErrorText: {
+    color: '#DC2626',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  modalCancelBtnText: {
+    color: '#475569',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  modalConfirmBtn: {
+    flex: 1,
+    backgroundColor: '#DC2626',
+    borderRadius: 8,
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  modalConfirmBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
   },
 });

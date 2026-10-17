@@ -40,6 +40,11 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
     updateRoundCourse,
     updatePlayerRoundQuota,
     recalculateRoundQuotasFromPrevious,
+    createGroup,
+    updateGroup,
+    deleteGroup,
+    autoGeneratePairings,
+    advanceRound,
     updateSettings,
     resetDemoData,
   } = useTournament();
@@ -47,9 +52,16 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
   const [pinInput, setPinInput] = useState<string>('');
   const [pinError, setPinError] = useState<string>('');
   const [activeTab, setActiveTab] = useState<
-    'rounds' | 'courses' | 'players' | 'settings'
-  >('rounds');
+    'rounds' | 'pairings' | 'courses' | 'players' | 'settings'
+  >('pairings');
   const [playerFilter, setPlayerFilter] = useState<'all' | 'active' | 'inactive'>('all');
+
+  // Pairings & Carts State
+  const [pairingRoundId, setPairingRoundId] = useState<string>(() => {
+    return state.rounds.find((r) => r.status === 'active')?.id || state.rounds[0]?.id || '';
+  });
+  const [newCartName, setNewCartName] = useState<string>('');
+  const [playerPickerCartId, setPlayerPickerCartId] = useState<string | null>(null);
 
   // Courses Editor State
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
@@ -157,8 +169,9 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
           {(
             [
               { id: 'rounds', label: 'Rounds & Quotas' },
-              { id: 'courses', label: 'Courses (Par/HCP)' },
+              { id: 'pairings', label: 'Carts & Pairings' },
               { id: 'players', label: 'Players' },
+              { id: 'courses', label: 'Courses (Par/HCP)' },
               { id: 'settings', label: 'Formula & PINs' },
             ] as const
           ).map((t) => (
@@ -305,6 +318,18 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
                     </TouchableOpacity>
                   )}
 
+                  {/* Finalize Round & Advance Button */}
+                  {round.status === 'active' && idx < sortedRounds.length - 1 && (
+                    <TouchableOpacity
+                      style={styles.finalizeRoundBtn}
+                      onPress={() => advanceRound(round.id)}
+                    >
+                      <Text style={styles.finalizeRoundBtnText}>
+                        🏆 Finalize Round {round.roundNumber} & Advance to Round {sortedRounds[idx + 1].roundNumber}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+
                   {/* Per-Player Quota Table for this Round */}
                   <View style={styles.quotaTableHeader}>
                     <Text style={[styles.quotaTh, { flex: 1.5 }]}>Player</Text>
@@ -413,6 +438,255 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
             </View>
           </View>
         )}
+
+        {/* TAB: CARTS & PAIRINGS (PRE-ROUND GROUP SETUP) */}
+        {activeTab === 'pairings' && (() => {
+          const currentPairingRound =
+            state.rounds.find((r) => r.id === pairingRoundId) || sortedRounds[0];
+          const attendingPlayers = state.players.filter((p) => p.isActive !== false);
+          const roundGroups = state.groups.filter((g) => g.roundId === pairingRoundId);
+          const assignedPlayerIds = new Set(roundGroups.flatMap((g) => g.playerIds));
+          const unassignedPlayers = attendingPlayers.filter((p) => !assignedPlayerIds.has(p.id));
+
+          return (
+            <View>
+              {/* Round Selector Bar */}
+              <View style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>1. Select Round for Pairings</Text>
+                <Text style={styles.sectionDesc}>
+                  Configure foursomes in advance. On the course, scorers simply select their pre-set Cart to lock into scoring.
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
+                  {sortedRounds.map((r) => {
+                    const isSelected = r.id === pairingRoundId;
+                    return (
+                      <TouchableOpacity
+                        key={r.id}
+                        style={[
+                          styles.roundSelectChip,
+                          isSelected && styles.roundSelectChipActive,
+                        ]}
+                        onPress={() => setPairingRoundId(r.id)}
+                      >
+                        <Text
+                          style={[
+                            styles.roundSelectChipText,
+                            isSelected && styles.roundSelectChipTextActive,
+                          ]}
+                        >
+                          Round {r.roundNumber} {r.status === 'active' ? '● Active' : ''}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* Status & Quick Actions Bar */}
+              <View style={styles.sectionCard}>
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={styles.sectionTitle}>
+                    2. {currentPairingRound?.name || 'Round'} Pairings
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.autoAssignBtn, { alignSelf: 'flex-start', marginTop: 8 }]}
+                    onPress={() => autoGeneratePairings(pairingRoundId)}
+                  >
+                    <Text style={styles.autoAssignBtnText}>⚡ Auto-Assign Attending Foursomes</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Status summary pills */}
+                <View style={styles.pairingSummaryRow}>
+                  <View style={styles.pairingSummaryPill}>
+                    <Text style={styles.pairingSummaryLabel}>Attending</Text>
+                    <Text style={styles.pairingSummaryValue}>{attendingPlayers.length}</Text>
+                  </View>
+                  <View style={styles.pairingSummaryPill}>
+                    <Text style={styles.pairingSummaryLabel}>Carts</Text>
+                    <Text style={styles.pairingSummaryValue}>{roundGroups.length}</Text>
+                  </View>
+                  <View style={styles.pairingSummaryPill}>
+                    <Text style={styles.pairingSummaryLabel}>Assigned</Text>
+                    <Text style={styles.pairingSummaryValue}>{assignedPlayerIds.size}</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.pairingSummaryPill,
+                      unassignedPlayers.length > 0 && { backgroundColor: '#FEF3C7', borderColor: '#F59E0B' },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.pairingSummaryLabel,
+                        unassignedPlayers.length > 0 && { color: '#B45309' },
+                      ]}
+                    >
+                      Unassigned
+                    </Text>
+                    <Text
+                      style={[
+                        styles.pairingSummaryValue,
+                        unassignedPlayers.length > 0 && { color: '#B45309' },
+                      ]}
+                    >
+                      {unassignedPlayers.length}
+                    </Text>
+                  </View>
+                </View>
+
+                {unassignedPlayers.length > 0 && (
+                  <View style={styles.unassignedNoticeBox}>
+                    <Text style={styles.unassignedNoticeTitle}>
+                      ⚠️ {unassignedPlayers.length} Attending Player(s) Need a Cart:
+                    </Text>
+                    <Text style={styles.unassignedNoticeText}>
+                      {unassignedPlayers.map((p) => p.name).join(', ')}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Groups / Carts List */}
+              {roundGroups.map((group) => {
+                const groupPlayers = group.playerIds
+                  .map((id) => state.players.find((p) => p.id === id))
+                  .filter(Boolean);
+
+                return (
+                  <View key={group.id} style={styles.cartCard}>
+                    <View style={styles.cartCardHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.cartCardName}>
+                          {group.name}
+                        </Text>
+                        <Text style={styles.cartCardMeta}>
+                          {groupPlayers.length}/4 Players Assigned • Starting Hole {group.currentHole || 1}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.cartDeleteBtn}
+                        onPress={() => deleteGroup(group.id)}
+                      >
+                        <Text style={styles.cartDeleteBtnText}>Delete Cart</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Players in Cart */}
+                    <View style={styles.cartPlayersList}>
+                      {groupPlayers.map((p) => (
+                        <View key={p!.id} style={styles.cartPlayerRow}>
+                          <View
+                            style={[
+                              styles.cartPlayerAvatar,
+                              { backgroundColor: p!.avatarColor || '#059669' },
+                            ]}
+                          >
+                            <Text style={styles.cartPlayerAvatarText}>
+                              {p!.name.slice(0, 2).toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.cartPlayerName}>{p!.name}</Text>
+                            <Text style={styles.cartPlayerSub}>
+                              {p!.flight}-Flight • Target: {currentPairingRound?.targetQuotas?.[p!.id] ?? p!.initialTargetQuota} pts
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.removePlayerBtn}
+                            onPress={() => {
+                              updateGroup({
+                                ...group,
+                                playerIds: group.playerIds.filter((id) => id !== p!.id),
+                              });
+                            }}
+                          >
+                            <Text style={styles.removePlayerBtnText}>✕</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+
+                      {groupPlayers.length === 0 && (
+                        <Text style={styles.emptyCartHint}>No players in this cart yet.</Text>
+                      )}
+                    </View>
+
+                    {/* Add Player to Cart Action */}
+                    {group.playerIds.length < 4 && (
+                      <View style={{ marginTop: 8 }}>
+                        {playerPickerCartId === group.id ? (
+                          <View style={styles.pickerBox}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                              <Text style={styles.pickerTitle}>Add Attending Player to {group.name}:</Text>
+                              <TouchableOpacity onPress={() => setPlayerPickerCartId(null)}>
+                                <Text style={styles.pickerCancelText}>Cancel</Text>
+                              </TouchableOpacity>
+                            </View>
+                            {unassignedPlayers.length > 0 ? (
+                              <View style={styles.pickerChipsRow}>
+                                {unassignedPlayers.map((p) => (
+                                  <TouchableOpacity
+                                    key={p.id}
+                                    style={styles.pickerChip}
+                                    onPress={() => {
+                                      updateGroup({
+                                        ...group,
+                                        playerIds: [...group.playerIds, p.id],
+                                      });
+                                      setPlayerPickerCartId(null);
+                                    }}
+                                  >
+                                    <Text style={styles.pickerChipText}>+ {p.name}</Text>
+                                  </TouchableOpacity>
+                                ))}
+                              </View>
+                            ) : (
+                              <Text style={styles.pickerNoPlayersText}>
+                                All attending players are already assigned to a cart.
+                              </Text>
+                            )}
+                          </View>
+                        ) : (
+                          <TouchableOpacity
+                            style={styles.addPlayerToCartBtn}
+                            onPress={() => setPlayerPickerCartId(group.id)}
+                          >
+                            <Text style={styles.addPlayerToCartBtnText}>
+                              + Add Player to {group.name} ({4 - group.playerIds.length} spots open)
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+
+              {/* Add New Custom Cart */}
+              <View style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>+ Create New Cart</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                  <TextInput
+                    style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                    placeholder={`e.g. Cart ${roundGroups.length + 1}`}
+                    value={newCartName}
+                    onChangeText={setNewCartName}
+                  />
+                  <TouchableOpacity
+                    style={styles.addCartSubmitBtn}
+                    onPress={() => {
+                      const name = newCartName.trim() || `Cart ${roundGroups.length + 1}`;
+                      createGroup(pairingRoundId, name, []);
+                      setNewCartName('');
+                    }}
+                  >
+                    <Text style={styles.addCartSubmitBtnText}>Create Cart</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          );
+        })()}
 
         {/* TAB 2: COURSES (HOLE PAR & DIFFICULTY RANK 1–18) */}
         {activeTab === 'courses' && (
@@ -1555,5 +1829,255 @@ const styles = StyleSheet.create({
   },
   activeStatusBadgeTextInactive: {
     color: '#B45309',
+  },
+  finalizeRoundBtn: {
+    backgroundColor: '#065F46',
+    borderRadius: 8,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  finalizeRoundBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  roundSelectChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#F1F5F9',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  roundSelectChipActive: {
+    backgroundColor: '#064E3B',
+    borderColor: '#064E3B',
+  },
+  roundSelectChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  roundSelectChipTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  autoAssignBtn: {
+    backgroundColor: '#065F46',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 7,
+  },
+  autoAssignBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  pairingSummaryRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  pairingSummaryPill: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  pairingSummaryLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#64748B',
+    textTransform: 'uppercase',
+  },
+  pairingSummaryValue: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginTop: 2,
+  },
+  unassignedNoticeBox: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 8,
+  },
+  unassignedNoticeTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#B45309',
+    marginBottom: 2,
+  },
+  unassignedNoticeText: {
+    fontSize: 12,
+    color: '#92400E',
+    fontWeight: '600',
+  },
+  cartCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  cartCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    paddingBottom: 8,
+    marginBottom: 10,
+  },
+  cartCardName: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  cartCardMeta: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 2,
+  },
+  cartDeleteBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: '#FEE2E2',
+  },
+  cartDeleteBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  cartPlayersList: {
+    gap: 8,
+  },
+  cartPlayerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 8,
+    padding: 8,
+  },
+  cartPlayerAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cartPlayerAvatarText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  cartPlayerName: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  cartPlayerSub: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  removePlayerBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removePlayerBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#475569',
+  },
+  emptyCartHint: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontStyle: 'italic',
+    paddingVertical: 8,
+  },
+  addPlayerToCartBtn: {
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#059669',
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+  },
+  addPlayerToCartBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#065F46',
+  },
+  pickerBox: {
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 8,
+    padding: 10,
+  },
+  pickerTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  pickerCancelText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  pickerChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  pickerChip: {
+    backgroundColor: '#064E3B',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  pickerChipText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  pickerNoPlayersText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+  addCartSubmitBtn: {
+    backgroundColor: '#064E3B',
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addCartSubmitBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
   },
 });

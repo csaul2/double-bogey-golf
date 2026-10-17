@@ -33,8 +33,12 @@ interface TournamentContextValue {
     strokes: number | null
   ) => void;
   createGroup: (roundId: string, name: string, playerIds: string[], scorerName?: string) => Group;
+  updateGroup: (group: Group) => void;
   updateGroupHole: (groupId: string, currentHole: number) => void;
   deleteGroup: (groupId: string) => void;
+  setRoundGroups: (roundId: string, groups: Group[]) => void;
+  autoGeneratePairings: (roundId: string) => void;
+  advanceRound: (completedRoundId: string) => void;
 
   // Admin: Courses
   saveCourse: (course: Course) => void;
@@ -74,7 +78,7 @@ const TournamentContext = createContext<TournamentContextValue | undefined>(unde
 export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<TournamentState>(() => getInitialTournamentState());
   const [isUnlocked, setIsUnlocked] = useState<boolean>(true); // Default unlocked for immediate testing, with lock toggle available
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(true);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => syncManager.getStatus());
   const [pendingSyncCount, setPendingSyncCount] = useState<number>(() => syncManager.getPendingCount());
 
@@ -201,6 +205,45 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       ...prev,
       groups: prev.groups.filter((g) => g.id !== groupId),
     }));
+  };
+
+  const updateGroup = (updatedGroup: Group) => {
+    setState((prev) => ({
+      ...prev,
+      groups: prev.groups.map((g) => (g.id === updatedGroup.id ? updatedGroup : g)),
+    }));
+  };
+
+  const setRoundGroups = (roundId: string, groups: Group[]) => {
+    setState((prev) => ({
+      ...prev,
+      groups: [...prev.groups.filter((g) => g.roundId !== roundId), ...groups],
+    }));
+  };
+
+  const autoGeneratePairings = (roundId: string) => {
+    setState((prev) => {
+      const activePlayers = prev.players.filter((p) => p.isActive !== false);
+      const foursomes: Group[] = [];
+      const chunkSize = 4;
+      for (let i = 0; i < activePlayers.length; i += chunkSize) {
+        const chunk = activePlayers.slice(i, i + chunkSize);
+        const cartIndex = Math.floor(i / chunkSize) + 1;
+        foursomes.push({
+          id: `group-${roundId}-cart${cartIndex}-${Date.now()}`,
+          roundId,
+          name: `Cart ${cartIndex}`,
+          playerIds: chunk.map((p) => p.id),
+          scorerName: chunk[0]?.name || `Cart ${cartIndex}`,
+          currentHole: 1,
+          createdAt: new Date().toISOString(),
+        });
+      }
+      return {
+        ...prev,
+        groups: [...prev.groups.filter((g) => g.roundId !== roundId), ...foursomes],
+      };
+    });
   };
 
   const saveCourse = (course: Course) => {
@@ -406,6 +449,70 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     });
   };
 
+  const advanceRound = (completedRoundId: string) => {
+    setState((prev) => {
+      const sortedRounds = [...prev.rounds].sort((a, b) => a.roundNumber - b.roundNumber);
+      const currIdx = sortedRounds.findIndex((r) => r.id === completedRoundId);
+      if (currIdx === -1) return prev;
+
+      const completedRound = sortedRounds[currIdx];
+      const completedCourse = prev.courses.find((c) => c.id === completedRound.courseId);
+      const nextRound = sortedRounds[currIdx + 1];
+
+      // Calculate next quotas for all players based on completed round
+      const newQuotas: Record<string, number> = {};
+      prev.players.forEach((player) => {
+        const stats = calculatePlayerRoundStats(player, completedRound, completedCourse);
+        if (stats.holesPlayed > 0) {
+          newQuotas[player.id] = calculateAdjustedTargetQuota(
+            stats.targetQuota,
+            stats.actualPoints,
+            prev.settings.targetAdjustmentPercent
+          );
+        } else if (nextRound && nextRound.targetQuotas[player.id]) {
+          newQuotas[player.id] = nextRound.targetQuotas[player.id];
+        } else {
+          newQuotas[player.id] = player.initialTargetQuota;
+        }
+      });
+
+      const updatedRounds = prev.rounds.map((r) => {
+        if (r.id === completedRoundId) {
+          return { ...r, status: 'completed' as RoundStatus };
+        }
+        if (nextRound && r.id === nextRound.id) {
+          return { ...r, status: 'active' as RoundStatus, targetQuotas: newQuotas };
+        }
+        return r;
+      });
+
+      // Also ensure next round has groups/carts; if none exist, carry over active groups
+      let updatedGroups = prev.groups;
+      if (nextRound) {
+        const nextRoundGroups = prev.groups.filter((g) => g.roundId === nextRound.id);
+        if (nextRoundGroups.length === 0) {
+          const prevGroups = prev.groups.filter((g) => g.roundId === completedRoundId);
+          const carriedGroups: Group[] = prevGroups.map((g, idx) => ({
+            id: `group-${nextRound.id}-cart${idx + 1}-${Date.now()}`,
+            roundId: nextRound.id,
+            name: g.name,
+            playerIds: [...g.playerIds],
+            scorerName: g.scorerName,
+            currentHole: 1,
+            createdAt: new Date().toISOString(),
+          }));
+          updatedGroups = [...prev.groups, ...carriedGroups];
+        }
+      }
+
+      return {
+        ...prev,
+        rounds: updatedRounds,
+        groups: updatedGroups,
+      };
+    });
+  };
+
   const updateSettings = (newSettings: Partial<TournamentSettings>) => {
     setState((prev) => ({
       ...prev,
@@ -434,8 +541,12 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         lockAdmin,
         setHoleScore,
         createGroup,
+        updateGroup,
         updateGroupHole,
         deleteGroup,
+        setRoundGroups,
+        autoGeneratePairings,
+        advanceRound,
         saveCourse,
         deleteCourse,
         addPlayer,
