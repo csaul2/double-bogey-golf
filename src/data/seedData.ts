@@ -1,4 +1,4 @@
-import { Course, Player, Round, TournamentState } from '../types/tournament';
+import { Course, Group, Player, Round, TournamentState } from '../types/tournament';
 import { calculateAdjustedTargetQuota, calculatePlayerRoundStats } from '../utils/scoring';
 
 // 5 Courses from Uncle Joe's 2026 Tournament Sheet
@@ -115,117 +115,89 @@ function createSeedRounds(): Round[] {
     'Round 5: Royal New Kent (11:00 AM)',
   ];
 
-  // Starting Round 1 quotas
+  // Starting Round 1 quotas for all players
   const r1Quotas: Record<string, number> = {};
   SEEDED_PLAYERS.forEach((p) => {
     r1Quotas[p.id] = p.initialTargetQuota;
   });
-
-  // Seed Round 1 realistic scores
-  const r1Scores: Record<string, Record<number, number>> = {
-    p_stevieb: { 1: 4, 2: 4, 3: 3, 4: 4, 5: 4, 6: 4, 7: 3, 8: 4, 9: 4, 10: 4, 11: 4, 12: 3, 13: 4, 14: 4, 15: 4, 16: 3, 17: 4, 18: 4 }, // +6
-    p_kulik: { 1: 5, 2: 5, 3: 4, 4: 5, 5: 5, 6: 4, 7: 4, 8: 5, 9: 5, 10: 5, 11: 5, 12: 4, 13: 5, 14: 5, 15: 4, 16: 3, 17: 5, 18: 4 }, // -3
-    p_jerry: { 1: 4, 2: 5, 3: 3, 4: 5, 5: 4, 6: 4, 7: 4, 8: 5, 9: 5, 10: 4, 11: 5, 12: 3, 13: 5, 14: 4, 15: 4, 16: 4, 17: 5, 18: 4 }, // Even
-    p_unclejoe: { 1: 4, 2: 5, 3: 4, 4: 5, 5: 4, 6: 5, 7: 3, 8: 5, 9: 5, 10: 4, 11: 5, 12: 3, 13: 5, 14: 5, 15: 4, 16: 3, 17: 5, 18: 4 }, // Even
-    p_bigal: { 1: 5, 2: 5, 3: 4, 4: 5, 5: 5, 6: 5, 7: 4, 8: 5, 9: 6, 10: 5, 11: 5, 12: 4, 13: 5, 14: 5, 15: 5, 16: 4, 17: 6, 18: 5 }, // +3
-    p_sean: { 1: 5, 2: 6, 3: 4, 4: 6, 5: 5, 6: 5, 7: 4, 8: 6, 9: 6, 10: 5, 11: 6, 12: 4, 13: 6, 14: 5, 15: 5, 16: 4, 17: 6, 18: 5 }, // +3
-  };
 
   const round1: Round = {
     id: 'round-1',
     roundNumber: 1,
     name: roundNames[0],
     courseId: courses[0].id,
-    status: 'completed',
-    targetQuotas: r1Quotas,
-    scores: r1Scores,
-  };
-
-  // Round 2 Quotas calculated from Round 1 results
-  const r2Quotas: Record<string, number> = {};
-  SEEDED_PLAYERS.forEach((p) => {
-    const r1Stats = calculatePlayerRoundStats(p, round1, courses[0]);
-    r2Quotas[p.id] = r1Stats.holesPlayed > 0
-      ? calculateAdjustedTargetQuota(r1Stats.targetQuota, r1Stats.actualPoints, 60)
-      : p.initialTargetQuota;
-  });
-
-  // Seed live in-progress holes for Round 2
-  const r2Scores: Record<string, Record<number, number>> = {
-    p_stevieb: { 1: 4, 2: 4, 3: 3, 4: 4, 5: 4, 6: 3 },
-    p_kulik: { 1: 4, 2: 5, 3: 3, 4: 4, 5: 4, 6: 4 },
-    p_unclejoe: { 1: 4, 2: 4, 3: 4, 4: 5, 5: 4, 6: 4 },
-    p_jerry: { 1: 4, 2: 4, 3: 3, 4: 5, 5: 4, 6: 4 },
-  };
-
-  const round2: Round = {
-    id: 'round-2',
-    roundNumber: 2,
-    name: roundNames[1],
-    courseId: courses[1].id,
     status: 'active',
-    targetQuotas: r2Quotas,
-    scores: r2Scores,
+    targetQuotas: r1Quotas,
+    scores: {},
   };
 
-  const remainingRounds: Round[] = [2, 3, 4].map((idx) => ({
+  const remainingRounds: Round[] = [1, 2, 3, 4].map((idx) => ({
     id: `round-${idx + 1}`,
     roundNumber: idx + 1,
     name: roundNames[idx],
     courseId: courses[idx].id,
     status: 'upcoming',
-    targetQuotas: { ...r2Quotas },
+    targetQuotas: { ...r1Quotas },
     scores: {},
   }));
 
-  return [round1, round2, ...remainingRounds];
+  return [round1, ...remainingRounds];
 }
 
-const SEEDED_GROUPS = [
+const SEEDED_GROUPS: Group[] = [
   {
-    id: 'group-r2-cart1',
-    roundId: 'round-2',
+    id: 'group-r1-cart1',
+    roundId: 'round-1',
     name: 'Cart 1',
     playerIds: ['p_unclejoe', 'p_kulik', 'p_stevieb', 'p_jerry'],
     scorerName: 'Uncle Joe',
-    currentHole: 7,
-    createdAt: '2026-10-16T12:00:00Z',
+    currentHole: 1,
+    createdAt: '2026-10-17T08:00:00Z',
   },
   {
-    id: 'group-r2-cart2',
-    roundId: 'round-2',
+    id: 'group-r1-cart2',
+    roundId: 'round-1',
     name: 'Cart 2',
     playerIds: ['p_et', 'p_scorecard', 'p_blake', 'p_tigger'],
     scorerName: 'E.T.',
-    currentHole: 7,
-    createdAt: '2026-10-16T12:00:00Z',
+    currentHole: 1,
+    createdAt: '2026-10-17T08:00:00Z',
   },
   {
-    id: 'group-r2-cart3',
-    roundId: 'round-2',
+    id: 'group-r1-cart3',
+    roundId: 'round-1',
     name: 'Cart 3',
     playerIds: ['p_ow', 'p_sandbagger', 'p_rj', 'p_baldy'],
     scorerName: 'O.W.',
-    currentHole: 7,
-    createdAt: '2026-10-16T12:00:00Z',
+    currentHole: 1,
+    createdAt: '2026-10-17T08:00:00Z',
   },
   {
-    id: 'group-r2-cart4',
-    roundId: 'round-2',
+    id: 'group-r1-cart4',
+    roundId: 'round-1',
     name: 'Cart 4',
     playerIds: ['p_creskin', 'p_anthony', 'p_todd', 'p_quirky'],
     scorerName: 'Creskin',
-    currentHole: 7,
-    createdAt: '2026-10-16T12:00:00Z',
+    currentHole: 1,
+    createdAt: '2026-10-17T08:00:00Z',
   },
   {
-    id: 'group-r2-cart5',
-    roundId: 'round-2',
+    id: 'group-r1-cart5',
+    roundId: 'round-1',
     name: 'Cart 5',
     playerIds: ['p_werner', 'p_christopher', 'p_bigal', 'p_sean'],
     scorerName: 'Werner',
-    currentHole: 7,
-    createdAt: '2026-10-16T12:00:00Z',
+    currentHole: 1,
+    createdAt: '2026-10-17T08:00:00Z',
+  },
+  {
+    id: 'group-r1-cart6',
+    roundId: 'round-1',
+    name: 'Cart 6',
+    playerIds: ['p_charmin', 'p_wes'],
+    scorerName: 'Charmin',
+    currentHole: 1,
+    createdAt: '2026-10-17T08:00:00Z',
   },
 ];
 

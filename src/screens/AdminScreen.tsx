@@ -53,7 +53,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
   const [pinError, setPinError] = useState<string>('');
   const [activeTab, setActiveTab] = useState<
     'rounds' | 'pairings' | 'courses' | 'players' | 'settings'
-  >('pairings');
+  >('rounds');
   const [playerFilter, setPlayerFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   // Pairings & Carts State

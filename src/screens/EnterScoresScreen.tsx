@@ -49,9 +49,9 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
     [state.groups, activeRound]
   );
 
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(() => roundGroups[0]?.id || null);
-  const [lockedCartId, setLockedCartId] = useState<string | null>(() => roundGroups[0]?.id || null);
-  const [isPickingCart, setIsPickingCart] = useState<boolean>(false);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [lockedCartId, setLockedCartId] = useState<string | null>(null);
+  const [isPickingCart, setIsPickingCart] = useState<boolean>(true);
   const [cartName, setCartName] = useState<string>('Cart 1');
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<string[]>([]);
   const [customCartBuilderOpen, setCustomCartBuilderOpen] = useState<boolean>(false);

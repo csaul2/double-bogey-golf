@@ -78,7 +78,7 @@ const TournamentContext = createContext<TournamentContextValue | undefined>(unde
 export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, setState] = useState<TournamentState>(() => getInitialTournamentState());
   const [isUnlocked, setIsUnlocked] = useState<boolean>(true); // Default unlocked for immediate testing, with lock toggle available
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(true);
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => syncManager.getStatus());
   const [pendingSyncCount, setPendingSyncCount] = useState<number>(() => syncManager.getPendingCount());
 
