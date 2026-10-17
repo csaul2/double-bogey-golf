@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTournament } from '../context/TournamentContext';
-import { Player } from '../types/tournament';
+import { CtpEntry, Player } from '../types/tournament';
 import { calculateHolePoints, calculatePlayerRoundStats, formatSignedScore } from '../utils/scoring';
 
 interface EnterScoresScreenProps {
@@ -25,6 +25,7 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
   const {
     state,
     setHoleScore,
+    setCtpDistance,
     createGroup,
     updateGroupHole,
     advanceRound,
@@ -32,6 +33,11 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
     pendingSyncCount,
     manualSync,
   } = useTournament();
+
+  // Par 3 Closest to the Pin (CTP) Modal State
+  const [ctpModalPlayer, setCtpModalPlayer] = useState<Player | null>(null);
+  const [ctpFeet, setCtpFeet] = useState<number>(10);
+  const [ctpInches, setCtpInches] = useState<number>(0);
 
   const activeRound = useMemo(
     () => state.rounds.find((r) => r.status === 'active') || state.rounds[0],
@@ -665,6 +671,49 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
                     })}
                   </View>
 
+                  {/* Par 3 Closest-To-The-Pin (CTP) Prompt */}
+                  {par === 3 && (
+                    <View style={styles.ctpRow}>
+                      {activeRound?.ctpDistances?.[player.id]?.[currentHoleNum] ? (
+                        <View style={styles.ctpSavedContainer}>
+                          <View style={styles.ctpSavedBadge}>
+                            <Text style={styles.ctpSavedIcon}>🎯</Text>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.ctpSavedText}>
+                                Green Hit: {activeRound.ctpDistances[player.id][currentHoleNum].feet}' {activeRound.ctpDistances[player.id][currentHoleNum].inches}"
+                              </Text>
+                              <Text style={styles.ctpSecretNote}>
+                                🤫 Secret distance • Revealed at dinner!
+                              </Text>
+                            </View>
+                          </View>
+                          <TouchableOpacity
+                            style={styles.ctpEditButton}
+                            onPress={() => {
+                              const entry = activeRound.ctpDistances![player.id][currentHoleNum];
+                              setCtpModalPlayer(player);
+                              setCtpFeet(entry.feet);
+                              setCtpInches(entry.inches);
+                            }}
+                          >
+                            <Text style={styles.ctpEditButtonText}>Edit</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.ctpAddButton}
+                          onPress={() => {
+                            setCtpModalPlayer(player);
+                            setCtpFeet(10);
+                            setCtpInches(0);
+                          }}
+                        >
+                          <Text style={styles.ctpAddButtonText}>🎯 Hit Green? Enter Distance (CTP)</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  )}
+
                   {/* Lock In / Commit Action for this player */}
                   <View style={styles.playerCardActionArea}>
                     {!isLocked ? (
@@ -796,6 +845,155 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
                 }}
               >
                 <Text style={styles.modalConfirmBtnText}>Unlock & Switch</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* CTP Distance Modal for Par 3s */}
+      <Modal
+        visible={!!ctpModalPlayer}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCtpModalPlayer(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.ctpModalCard}>
+            <View style={styles.ctpModalHeader}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.ctpModalTitle}>🎯 Closest to the Pin</Text>
+                <Text style={styles.ctpModalSubtitle}>
+                  Hole {currentHoleNum} (Par 3{currentHoleConfig?.yardage ? ` • ${currentHoleConfig.yardage} yds` : ''}) • {ctpModalPlayer?.name}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.flightTag,
+                  ctpModalPlayer?.flight === 'A' ? styles.flightTagA : styles.flightTagB,
+                ]}
+              >
+                <Text style={styles.flightTagText}>Flight {ctpModalPlayer?.flight}</Text>
+              </View>
+            </View>
+
+            {/* Secret dinner notice */}
+            <View style={styles.ctpSecretBanner}>
+              <Text style={styles.ctpSecretBannerText}>
+                🤫 Secret Entry: Distances remain private and are revealed at the post-round dinner!
+              </Text>
+            </View>
+
+            {/* Feet Stepper */}
+            <View style={styles.ctpMeasureSection}>
+              <Text style={styles.ctpSectionLabel}>FEET:</Text>
+              <View style={styles.ctpStepperRow}>
+                <TouchableOpacity
+                  style={styles.ctpStepBtn}
+                  onPress={() => setCtpFeet((f) => Math.max(0, f - 1))}
+                >
+                  <Text style={styles.ctpStepBtnText}>−</Text>
+                </TouchableOpacity>
+                <View style={styles.ctpValueDisplay}>
+                  <Text style={styles.ctpValueBig}>{ctpFeet}</Text>
+                  <Text style={styles.ctpValueUnit}>FEET</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.ctpStepBtn}
+                  onPress={() => setCtpFeet((f) => f + 1)}
+                >
+                  <Text style={styles.ctpStepBtnText}>+</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Quick Feet Chips */}
+              <View style={styles.ctpChipsRow}>
+                {[2, 4, 6, 8, 10, 15, 20, 25, 30].map((ft) => (
+                  <TouchableOpacity
+                    key={ft}
+                    style={[styles.ctpChip, ctpFeet === ft && styles.ctpChipActive]}
+                    onPress={() => setCtpFeet(ft)}
+                  >
+                    <Text style={[styles.ctpChipText, ctpFeet === ft && styles.ctpChipTextActive]}>
+                      {ft}'
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Inches Stepper */}
+            <View style={styles.ctpMeasureSection}>
+              <Text style={styles.ctpSectionLabel}>INCHES:</Text>
+              <View style={styles.ctpStepperRow}>
+                <TouchableOpacity
+                  style={styles.ctpStepBtn}
+                  onPress={() => setCtpInches((i) => Math.max(0, i - 1))}
+                >
+                  <Text style={styles.ctpStepBtnText}>−</Text>
+                </TouchableOpacity>
+                <View style={styles.ctpValueDisplay}>
+                  <Text style={styles.ctpValueBig}>{ctpInches}</Text>
+                  <Text style={styles.ctpValueUnit}>INCHES</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.ctpStepBtn}
+                  onPress={() => setCtpInches((i) => Math.min(11, i + 1))}
+                >
+                  <Text style={styles.ctpStepBtnText}>+</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Quick Inches Chips */}
+              <View style={styles.ctpChipsRow}>
+                {[0, 2, 4, 6, 8, 10].map((inch) => (
+                  <TouchableOpacity
+                    key={inch}
+                    style={[styles.ctpChip, ctpInches === inch && styles.ctpChipActive]}
+                    onPress={() => setCtpInches(inch)}
+                  >
+                    <Text style={[styles.ctpChipText, ctpInches === inch && styles.ctpChipTextActive]}>
+                      {inch}"
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Total Measurement Banner */}
+            <View style={styles.ctpTotalBanner}>
+              <Text style={styles.ctpTotalLabel}>RECORDED DISTANCE:</Text>
+              <Text style={styles.ctpTotalValue}>
+                {ctpFeet} FT  {ctpInches} IN
+              </Text>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.modalBtnRow}>
+              <TouchableOpacity
+                style={styles.ctpClearBtn}
+                onPress={() => {
+                  if (activeRound && ctpModalPlayer) {
+                    setCtpDistance(activeRound.id, ctpModalPlayer.id, currentHoleNum, null);
+                  }
+                  setCtpModalPlayer(null);
+                }}
+              >
+                <Text style={styles.ctpClearBtnText}>Missed Green / Clear</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.ctpSaveBtn}
+                onPress={() => {
+                  if (activeRound && ctpModalPlayer) {
+                    setCtpDistance(activeRound.id, ctpModalPlayer.id, currentHoleNum, {
+                      feet: ctpFeet,
+                      inches: ctpInches,
+                    });
+                  }
+                  setCtpModalPlayer(null);
+                }}
+              >
+                <Text style={styles.ctpSaveBtnText}>💾 Save Distance</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1551,6 +1749,241 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalConfirmBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  // CTP In-Card Styles
+  ctpRow: {
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  ctpAddButton: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1.5,
+    borderColor: '#86EFAC',
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ctpAddButtonText: {
+    color: '#15803D',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  ctpSavedContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#10B981',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    gap: 8,
+  },
+  ctpSavedBadge: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  ctpSavedIcon: {
+    fontSize: 18,
+  },
+  ctpSavedText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#065F46',
+  },
+  ctpSecretNote: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#047857',
+    marginTop: 1,
+  },
+  ctpEditButton: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  ctpEditButtonText: {
+    color: '#047857',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+
+  // CTP Modal Styles
+  ctpModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 18,
+    width: '92%',
+    maxWidth: 420,
+    maxHeight: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  ctpModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  ctpModalTitle: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#064E3B',
+  },
+  ctpModalSubtitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+    marginTop: 2,
+  },
+  ctpSecretBanner: {
+    backgroundColor: '#FEF3C7',
+    borderLeftWidth: 4,
+    borderLeftColor: '#D97706',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 6,
+    marginBottom: 12,
+  },
+  ctpSecretBannerText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#92400E',
+    lineHeight: 15,
+  },
+  ctpMeasureSection: {
+    marginBottom: 12,
+  },
+  ctpSectionLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#475569',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  ctpStepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  ctpStepBtn: {
+    backgroundColor: '#064E3B',
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ctpStepBtnText: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '800',
+    lineHeight: 24,
+  },
+  ctpValueDisplay: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  ctpValueBig: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  ctpValueUnit: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  ctpChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  ctpChip: {
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    borderRadius: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  ctpChipActive: {
+    backgroundColor: '#064E3B',
+    borderColor: '#064E3B',
+  },
+  ctpChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  ctpChipTextActive: {
+    color: '#FFFFFF',
+  },
+  ctpTotalBanner: {
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1.5,
+    borderColor: '#22C55E',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  ctpTotalLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#15803D',
+    letterSpacing: 0.5,
+  },
+  ctpTotalValue: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#064E3B',
+    marginTop: 2,
+  },
+  ctpClearBtn: {
+    flex: 1,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  ctpClearBtnText: {
+    color: '#DC2626',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  ctpSaveBtn: {
+    flex: 1.2,
+    backgroundColor: '#064E3B',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  ctpSaveBtnText: {
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 13,

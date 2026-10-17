@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS public.scores (
   player_id TEXT NOT NULL REFERENCES public.players(id) ON DELETE CASCADE,
   hole_number INT NOT NULL CHECK (hole_number BETWEEN 1 AND 18),
   strokes INT NOT NULL CHECK (strokes >= 1),
+  ctp_feet INT,
+  ctp_inches INT,
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   CONSTRAINT unique_player_round_hole UNIQUE (round_id, player_id, hole_number)
 );

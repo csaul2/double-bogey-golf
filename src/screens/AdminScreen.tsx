@@ -8,7 +8,7 @@ import {
   View,
 } from 'react-native';
 import { createBlankCourse, useTournament } from '../context/TournamentContext';
-import { Course, Flight, RoundStatus } from '../types/tournament';
+import { Course, CtpEntry, Flight, Player, RoundStatus } from '../types/tournament';
 import {
   calculateAdjustedTargetQuota,
   calculatePlayerRoundStats,
@@ -47,17 +47,22 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
     advanceRound,
     updateSettings,
     resetDemoData,
+    setCtpDistance,
+    togglePublishCtp,
   } = useTournament();
 
   const [pinInput, setPinInput] = useState<string>('');
   const [pinError, setPinError] = useState<string>('');
   const [activeTab, setActiveTab] = useState<
-    'rounds' | 'pairings' | 'courses' | 'players' | 'settings'
+    'rounds' | 'pairings' | 'ctp' | 'courses' | 'players' | 'settings'
   >('rounds');
   const [playerFilter, setPlayerFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   // Pairings & Carts State
   const [pairingRoundId, setPairingRoundId] = useState<string>(() => {
+    return state.rounds.find((r) => r.status === 'active')?.id || state.rounds[0]?.id || '';
+  });
+  const [adminCtpRoundId, setAdminCtpRoundId] = useState<string>(() => {
     return state.rounds.find((r) => r.status === 'active')?.id || state.rounds[0]?.id || '';
   });
   const [newCartName, setNewCartName] = useState<string>('');
@@ -170,6 +175,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
             [
               { id: 'rounds', label: 'Rounds & Quotas' },
               { id: 'pairings', label: 'Carts & Pairings' },
+              { id: 'ctp', label: '🎯 Par 3 CTP' },
               { id: 'players', label: 'Players' },
               { id: 'courses', label: 'Courses (Par/HCP)' },
               { id: 'settings', label: 'Formula & PINs' },
@@ -684,6 +690,250 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
                   </TouchableOpacity>
                 </View>
               </View>
+            </View>
+          );
+        })()}
+
+        {/* TAB: PAR 3 CLOSEST TO THE PIN (CTP) DINNER REVEAL */}
+        {activeTab === 'ctp' && (() => {
+          const round = state.rounds.find((r) => r.id === adminCtpRoundId) || state.rounds[0];
+          const course = state.courses.find((c) => c.id === round?.courseId);
+          const par3Holes = course?.holes.filter((h) => h.par === 3) || [];
+          const isPublished = Boolean(round?.ctpPublished);
+
+          return (
+            <View>
+              <View style={styles.sectionCard}>
+                <Text style={styles.sectionTitle}>🍽️ Par 3 CTP — Dinner Reveal</Text>
+                <Text style={styles.sectionDesc}>
+                  Separate Closest to the Pin winners for Flight A and Flight B on every Par 3.
+                </Text>
+
+                {/* Round Switcher */}
+                <Text style={styles.fieldLabel}>Select Round:</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ marginBottom: 14 }}
+                >
+                  {state.rounds.map((r) => {
+                    const selected = r.id === adminCtpRoundId;
+                    return (
+                      <TouchableOpacity
+                        key={r.id}
+                        style={[
+                          styles.courseSelectChip,
+                          selected && styles.courseSelectChipActive,
+                        ]}
+                        onPress={() => setAdminCtpRoundId(r.id)}
+                      >
+                        <Text
+                          style={[
+                            styles.courseSelectChipText,
+                            selected && styles.courseSelectChipTextActive,
+                          ]}
+                        >
+                          Round {r.roundNumber} ({r.name})
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+
+                {/* Dinner Publication Banner & Toggle */}
+                <View
+                  style={[
+                    styles.adminCtpBanner,
+                    isPublished ? styles.adminCtpBannerPublished : styles.adminCtpBannerSecret,
+                  ]}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[
+                        styles.adminCtpBannerTitle,
+                        isPublished
+                          ? styles.adminCtpBannerTitlePublished
+                          : styles.adminCtpBannerTitleSecret,
+                      ]}
+                    >
+                      {isPublished
+                        ? '📢 CTP WINNERS ARE PUBLISHED TO APP'
+                        : '🤫 SECRET BANQUET MODE (HIDDEN)'}
+                    </Text>
+                    <Text style={styles.adminCtpBannerSubtitle}>
+                      {isPublished
+                        ? 'Golfers can currently view the official Par 3 winners and distances on their Standings tab during dinner.'
+                        : 'Distances are currently hidden from players. Reveal them when announcing winners at dinner!'}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.adminCtpPublishBtn,
+                      isPublished ? styles.adminCtpUnpublishBtn : styles.adminCtpPublishBtnActive,
+                    ]}
+                    onPress={() => {
+                      if (round) {
+                        togglePublishCtp(round.id, !isPublished);
+                      }
+                    }}
+                  >
+                    <Text style={styles.adminCtpPublishBtnText}>
+                      {isPublished ? '🔒 Hide from Players' : '🎉 Publish to App (Dinner)'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* List of Par 3 Holes */}
+              {par3Holes.length === 0 ? (
+                <View style={styles.sectionCard}>
+                  <Text style={styles.emptyCartHint}>
+                    No Par 3 holes found on the course assigned to this round.
+                  </Text>
+                </View>
+              ) : (
+                par3Holes.map((hole) => {
+                  const flightAEntries = state.players
+                    .filter((p) => p.flight === 'A')
+                    .map((p) => {
+                      const entry = round?.ctpDistances?.[p.id]?.[hole.holeNumber];
+                      if (!entry) return null;
+                      return {
+                        player: p,
+                        entry,
+                        totalInches: entry.feet * 12 + entry.inches,
+                      };
+                    })
+                    .filter(Boolean)
+                    .sort((a, b) => a!.totalInches - b!.totalInches) as {
+                      player: Player;
+                      entry: CtpEntry;
+                      totalInches: number;
+                    }[];
+
+                  const flightBEntries = state.players
+                    .filter((p) => p.flight === 'B')
+                    .map((p) => {
+                      const entry = round?.ctpDistances?.[p.id]?.[hole.holeNumber];
+                      if (!entry) return null;
+                      return {
+                        player: p,
+                        entry,
+                        totalInches: entry.feet * 12 + entry.inches,
+                      };
+                    })
+                    .filter(Boolean)
+                    .sort((a, b) => a!.totalInches - b!.totalInches) as {
+                      player: Player;
+                      entry: CtpEntry;
+                      totalInches: number;
+                    }[];
+
+                  const winnerA = flightAEntries[0];
+                  const winnerB = flightBEntries[0];
+
+                  return (
+                    <View key={hole.holeNumber} style={styles.sectionCard}>
+                      <View style={styles.adminCtpHoleHeader}>
+                        <Text style={styles.adminCtpHoleTitle}>
+                          ⛳ Hole {hole.holeNumber} • Par 3
+                          {hole.yardage ? ` (${hole.yardage} yds)` : ''}
+                        </Text>
+                        <Text style={styles.adminCtpHoleHcp}>
+                          Difficulty HCP Rank: #{hole.difficultyRank}
+                        </Text>
+                      </View>
+
+                      {/* Flight A and Flight B Cards */}
+                      <View style={styles.adminCtpFlightsRow}>
+                        {/* FLIGHT A */}
+                        <View style={styles.adminCtpFlightBox}>
+                          <View style={styles.adminCtpFlightBoxHeaderA}>
+                            <Text style={styles.adminCtpFlightBoxTitle}>FLIGHT A</Text>
+                            <Text style={styles.adminCtpCountBadge}>
+                              {flightAEntries.length} on green
+                            </Text>
+                          </View>
+
+                          {winnerA ? (
+                            <View style={styles.adminCtpWinnerCardA}>
+                              <Text style={styles.adminCtpWinnerCrown}>🥇 1st Place Winner</Text>
+                              <Text style={styles.adminCtpWinnerName}>{winnerA.player.name}</Text>
+                              <Text style={styles.adminCtpWinnerDist}>
+                                {winnerA.entry.feet}' {winnerA.entry.inches}" to pin
+                              </Text>
+                            </View>
+                          ) : (
+                            <View style={styles.adminCtpNoEntries}>
+                              <Text style={styles.adminCtpNoEntriesText}>
+                                No Flight A on green
+                              </Text>
+                            </View>
+                          )}
+
+                          {flightAEntries.length > 1 && (
+                            <View style={styles.adminCtpRunnersUp}>
+                              <Text style={styles.adminCtpRunnersUpTitle}>Runners Up:</Text>
+                              {flightAEntries.slice(1).map((item, idx) => (
+                                <View key={item.player.id} style={styles.adminCtpRunnerUpRow}>
+                                  <Text style={styles.adminCtpRunnerUpRank}>
+                                    {idx + 2}. {item.player.name}
+                                  </Text>
+                                  <Text style={styles.adminCtpRunnerUpDist}>
+                                    {item.entry.feet}' {item.entry.inches}"
+                                  </Text>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+
+                        {/* FLIGHT B */}
+                        <View style={styles.adminCtpFlightBox}>
+                          <View style={styles.adminCtpFlightBoxHeaderB}>
+                            <Text style={styles.adminCtpFlightBoxTitle}>FLIGHT B</Text>
+                            <Text style={styles.adminCtpCountBadge}>
+                              {flightBEntries.length} on green
+                            </Text>
+                          </View>
+
+                          {winnerB ? (
+                            <View style={styles.adminCtpWinnerCardB}>
+                              <Text style={styles.adminCtpWinnerCrown}>🥇 1st Place Winner</Text>
+                              <Text style={styles.adminCtpWinnerName}>{winnerB.player.name}</Text>
+                              <Text style={styles.adminCtpWinnerDist}>
+                                {winnerB.entry.feet}' {winnerB.entry.inches}" to pin
+                              </Text>
+                            </View>
+                          ) : (
+                            <View style={styles.adminCtpNoEntries}>
+                              <Text style={styles.adminCtpNoEntriesText}>
+                                No Flight B on green
+                              </Text>
+                            </View>
+                          )}
+
+                          {flightBEntries.length > 1 && (
+                            <View style={styles.adminCtpRunnersUp}>
+                              <Text style={styles.adminCtpRunnersUpTitle}>Runners Up:</Text>
+                              {flightBEntries.slice(1).map((item, idx) => (
+                                <View key={item.player.id} style={styles.adminCtpRunnerUpRow}>
+                                  <Text style={styles.adminCtpRunnerUpRank}>
+                                    {idx + 2}. {item.player.name}
+                                  </Text>
+                                  <Text style={styles.adminCtpRunnerUpDist}>
+                                    {item.entry.feet}' {item.entry.inches}"
+                                  </Text>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
             </View>
           );
         })()}
@@ -2079,5 +2329,181 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 13,
+  },
+  // Admin Par 3 CTP Styles
+  adminCtpBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1.5,
+    gap: 12,
+    marginBottom: 8,
+  },
+  adminCtpBannerPublished: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#059669',
+  },
+  adminCtpBannerSecret: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#D97706',
+  },
+  adminCtpBannerTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  adminCtpBannerTitlePublished: {
+    color: '#065F46',
+  },
+  adminCtpBannerTitleSecret: {
+    color: '#92400E',
+  },
+  adminCtpBannerSubtitle: {
+    fontSize: 11,
+    color: '#475569',
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  adminCtpPublishBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  adminCtpPublishBtnActive: {
+    backgroundColor: '#D97706',
+  },
+  adminCtpUnpublishBtn: {
+    backgroundColor: '#64748B',
+  },
+  adminCtpPublishBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 12,
+  },
+  adminCtpHoleCard: {
+    marginBottom: 16,
+  },
+  adminCtpHoleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  adminCtpHoleTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  adminCtpHoleHcp: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  adminCtpFlightsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  adminCtpFlightBox: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+  },
+  adminCtpFlightBoxHeaderA: {
+    backgroundColor: '#1E3A8A',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  adminCtpFlightBoxHeaderB: {
+    backgroundColor: '#581C87',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  adminCtpFlightBoxTitle: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  adminCtpCountBadge: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  adminCtpWinnerCardA: {
+    backgroundColor: '#EFF6FF',
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#DBEAFE',
+  },
+  adminCtpWinnerCardB: {
+    backgroundColor: '#FAF5FF',
+    padding: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3E8FF',
+  },
+  adminCtpWinnerCrown: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#D97706',
+    marginBottom: 2,
+  },
+  adminCtpWinnerName: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  adminCtpWinnerDist: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#059669',
+    marginTop: 2,
+  },
+  adminCtpNoEntries: {
+    padding: 12,
+    alignItems: 'center',
+  },
+  adminCtpNoEntriesText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    fontStyle: 'italic',
+  },
+  adminCtpRunnersUp: {
+    padding: 8,
+  },
+  adminCtpRunnersUpTitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#64748B',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  adminCtpRunnerUpRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 3,
+  },
+  adminCtpRunnerUpRank: {
+    fontSize: 11,
+    color: '#334155',
+    fontWeight: '600',
+  },
+  adminCtpRunnerUpDist: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#059669',
   },
 });

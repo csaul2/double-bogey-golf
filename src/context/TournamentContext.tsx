@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState } from 'react';
 import { getInitialTournamentState } from '../data/seedData';
 import {
   Course,
+  CtpEntry,
   Flight,
   Group,
   HoleConfig,
@@ -32,6 +33,13 @@ interface TournamentContextValue {
     holeNumber: number,
     strokes: number | null
   ) => void;
+  setCtpDistance: (
+    roundId: string,
+    playerId: string,
+    holeNumber: number,
+    distance: CtpEntry | null
+  ) => void;
+  togglePublishCtp: (roundId: string, published: boolean) => void;
   createGroup: (roundId: string, name: string, playerIds: string[], scorerName?: string) => Group;
   updateGroup: (group: Group) => void;
   updateGroupHole: (groupId: string, currentHole: number) => void;
@@ -165,6 +173,41 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     if (strokes !== null && strokes > 0) {
       syncManager.queueScore(roundId, playerId, holeNumber, strokes);
     }
+  };
+
+  const setCtpDistance = (
+    roundId: string,
+    playerId: string,
+    holeNumber: number,
+    distance: CtpEntry | null
+  ) => {
+    setState((prev) => {
+      const rounds = prev.rounds.map((r) => {
+        if (r.id !== roundId) return r;
+        const ctpDistances = { ...(r.ctpDistances || {}) };
+        const playerDistances = { ...(ctpDistances[playerId] || {}) };
+        if (!distance) {
+          delete playerDistances[holeNumber];
+        } else {
+          playerDistances[holeNumber] = distance;
+        }
+        ctpDistances[playerId] = playerDistances;
+        return {
+          ...r,
+          ctpDistances,
+        };
+      });
+      return { ...prev, rounds };
+    });
+  };
+
+  const togglePublishCtp = (roundId: string, published: boolean) => {
+    setState((prev) => ({
+      ...prev,
+      rounds: prev.rounds.map((r) =>
+        r.id === roundId ? { ...r, ctpPublished: published } : r
+      ),
+    }));
   };
 
   const createGroup = (
@@ -540,6 +583,8 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         unlockAdmin,
         lockAdmin,
         setHoleScore,
+        setCtpDistance,
+        togglePublishCtp,
         createGroup,
         updateGroup,
         updateGroupHole,

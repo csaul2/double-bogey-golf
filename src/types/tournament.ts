@@ -25,6 +25,11 @@ export interface Player {
 
 export type RoundStatus = 'upcoming' | 'active' | 'completed';
 
+export interface CtpEntry {
+  feet: number;
+  inches: number;
+}
+
 export interface Round {
   id: string;
   roundNumber: number; // 1, 2, 3, ...
@@ -42,6 +47,15 @@ export interface Round {
    * Maps playerId -> Map of holeNumber (1..18) -> gross strokes entered.
    */
   scores: Record<string, Record<number, number>>;
+  /**
+   * Optional Par 3 Closest-To-The-Pin (CTP) measurements.
+   * Maps playerId -> holeNumber (1..18) -> { feet, inches }
+   */
+  ctpDistances?: Record<string, Record<number, CtpEntry>>;
+  /**
+   * Whether the admin has published CTP contest results for dinner viewing.
+   */
+  ctpPublished?: boolean;
 }
 
 export interface Group {

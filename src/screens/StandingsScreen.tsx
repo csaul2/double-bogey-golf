@@ -154,6 +154,86 @@ export const StandingsScreen: React.FC<StandingsScreenProps> = ({
         </TouchableOpacity>
       </View>
 
+      {/* Par 3 CTP Dinner Announcement Banner (Only visible when Admin publishes it at dinner!) */}
+      {activeRound?.ctpPublished && (
+        <View style={styles.dinnerCtpBanner}>
+          <View style={styles.dinnerCtpBannerHeader}>
+            <Text style={styles.dinnerCtpTitle}>🍽️ Par 3 CTP Dinner Winners 🏆</Text>
+            <Text style={styles.dinnerCtpSubtitle}>
+              Official Closest to the Pin for {activeRound.name}
+            </Text>
+          </View>
+
+          {/* List all Par 3 holes with winners */}
+          <View style={styles.dinnerCtpGrid}>
+            {activeCourse?.holes
+              .filter((h) => h.par === 3)
+              .map((hole) => {
+                const flightA = state.players
+                  .filter((p) => p.flight === 'A')
+                  .map((p) => {
+                    const entry = activeRound.ctpDistances?.[p.id]?.[hole.holeNumber];
+                    if (!entry) return null;
+                    return { player: p, entry, totalInches: entry.feet * 12 + entry.inches };
+                  })
+                  .filter(Boolean)
+                  .sort((a, b) => a!.totalInches - b!.totalInches);
+
+                const flightB = state.players
+                  .filter((p) => p.flight === 'B')
+                  .map((p) => {
+                    const entry = activeRound.ctpDistances?.[p.id]?.[hole.holeNumber];
+                    if (!entry) return null;
+                    return { player: p, entry, totalInches: entry.feet * 12 + entry.inches };
+                  })
+                  .filter(Boolean)
+                  .sort((a, b) => a!.totalInches - b!.totalInches);
+
+                const winnerA = flightA[0];
+                const winnerB = flightB[0];
+
+                return (
+                  <View key={hole.holeNumber} style={styles.dinnerCtpCard}>
+                    <View style={styles.dinnerCtpHoleTag}>
+                      <Text style={styles.dinnerCtpHoleNum}>Hole {hole.holeNumber}</Text>
+                      <Text style={styles.dinnerCtpHoleYds}>
+                        {hole.yardage ? `${hole.yardage}y` : 'Par 3'}
+                      </Text>
+                    </View>
+                    <View style={styles.dinnerCtpWinnersCol}>
+                      {/* Flight A Winner */}
+                      <View style={styles.dinnerCtpWinnerRow}>
+                        <View style={[styles.flightTagSmall, styles.flightTagSmallA]}>
+                          <Text style={styles.flightTagSmallText}>A</Text>
+                        </View>
+                        <Text style={styles.dinnerCtpWinnerName} numberOfLines={1}>
+                          {winnerA ? winnerA.player.name : 'No mark'}
+                        </Text>
+                        <Text style={styles.dinnerCtpWinnerDist}>
+                          {winnerA ? `${winnerA.entry.feet}' ${winnerA.entry.inches}"` : '—'}
+                        </Text>
+                      </View>
+
+                      {/* Flight B Winner */}
+                      <View style={styles.dinnerCtpWinnerRow}>
+                        <View style={[styles.flightTagSmall, styles.flightTagSmallB]}>
+                          <Text style={styles.flightTagSmallText}>B</Text>
+                        </View>
+                        <Text style={styles.dinnerCtpWinnerName} numberOfLines={1}>
+                          {winnerB ? winnerB.player.name : 'No mark'}
+                        </Text>
+                        <Text style={styles.dinnerCtpWinnerDist}>
+                          {winnerB ? `${winnerB.entry.feet}' ${winnerB.entry.inches}"` : '—'}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+          </View>
+        </View>
+      )}
+
       {/* Round Complete Banner if all 18 holes are scored for all active players */}
       {isRound18HolesComplete && (
         <View style={styles.roundCompleteNotice}>
@@ -825,5 +905,107 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 12,
+  },
+  // Dinner Banquet Par 3 CTP Styles
+  dinnerCtpBanner: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#10B981',
+    borderRadius: 14,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 6,
+    padding: 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  dinnerCtpBannerHeader: {
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#D1FAE5',
+    paddingBottom: 6,
+  },
+  dinnerCtpTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#064E3B',
+  },
+  dinnerCtpSubtitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#047857',
+    marginTop: 2,
+  },
+  dinnerCtpGrid: {
+    gap: 8,
+  },
+  dinnerCtpCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  dinnerCtpHoleTag: {
+    backgroundColor: '#064E3B',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    alignItems: 'center',
+    minWidth: 58,
+  },
+  dinnerCtpHoleNum: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  dinnerCtpHoleYds: {
+    color: '#A7F3D0',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  dinnerCtpWinnersCol: {
+    flex: 1,
+    gap: 4,
+  },
+  dinnerCtpWinnerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  flightTagSmall: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  flightTagSmallA: {
+    backgroundColor: '#1E3A8A',
+  },
+  flightTagSmallB: {
+    backgroundColor: '#581C87',
+  },
+  flightTagSmallText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  dinnerCtpWinnerName: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  dinnerCtpWinnerDist: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#059669',
   },
 });
