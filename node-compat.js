@@ -36,8 +36,48 @@ if (!util.parseEnv) {
   };
 }
 
-// Clean up NODE_OPTIONS so child processes (like Electron React Native DevTools)
-// don't inherit --require ./node-compat.js and crash.
-delete process.env.NODE_OPTIONS;
+// Intercept child_process spawning so Electron / DevTools child processes
+// do not inherit NODE_OPTIONS (packaged Electron apps disallow NODE_OPTIONS in C++).
+// Node.js processes keep NODE_OPTIONS so URL.parse & polyfills remain active.
+const cp = require('child_process');
+const sanitizeEnv = (env) => {
+  if (!env) return env;
+  const clone = { ...env };
+  delete clone.NODE_OPTIONS;
+  return clone;
+};
+
+const isDevToolsCmd = (cmd) => {
+  const str = String(cmd);
+  return (
+    str.includes('DevTools') ||
+    str.includes('devtools') ||
+    str.includes('electron') ||
+    str.includes('Electron')
+  );
+};
+
+const origSpawn = cp.spawn;
+cp.spawn = function (cmd, args, options) {
+  if (isDevToolsCmd(cmd)) {
+    if (options && options.env) {
+      options.env = sanitizeEnv(options.env);
+    } else if (options) {
+      options.env = sanitizeEnv(process.env);
+    }
+  }
+  return origSpawn.apply(this, arguments);
+};
+
+const origExec = cp.exec;
+cp.exec = function (cmd, options, cb) {
+  if (isDevToolsCmd(cmd)) {
+    if (typeof options === 'object' && options !== null) {
+      if (options.env) options.env = sanitizeEnv(options.env);
+      else options.env = sanitizeEnv(process.env);
+    }
+  }
+  return origExec.apply(this, arguments);
+};
 
 
