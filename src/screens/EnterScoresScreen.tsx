@@ -232,7 +232,7 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
 
             {/* List of Players with Big Checkboxes */}
             <View style={styles.rosterList}>
-              {state.players.map((player) => {
+              {state.players.filter((p) => p.isActive !== false).map((player) => {
                 const isSelected = selectedPlayerIds.includes(player.id);
                 return (
                   <TouchableOpacity

@@ -20,6 +20,7 @@ export interface Player {
   flight: Flight;
   avatarColor: string;
   initialTargetQuota: number; // Starting target quota for Round 1
+  isActive?: boolean; // Whether player is attending/active for the current tournament
 }
 
 export type RoundStatus = 'upcoming' | 'active' | 'completed';

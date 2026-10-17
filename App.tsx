@@ -8,21 +8,38 @@ import {
   View,
 } from 'react-native';
 import { TournamentProvider, useTournament } from './src/context/TournamentContext';
+import { AdminScreen } from './src/screens/AdminScreen';
 import { EnterScoresScreen } from './src/screens/EnterScoresScreen';
 import { MasterSheetScreen } from './src/screens/MasterSheetScreen';
 import { StandingsScreen } from './src/screens/StandingsScreen';
 
 type Tab = 'scores' | 'standings';
+type AdminModal = 'admin' | 'mastersheet' | null;
 
 const MainShell: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>('scores');
-  const [showAdminMasterSheet, setShowAdminMasterSheet] = useState<boolean>(false);
+  const [adminModal, setAdminModal] = useState<AdminModal>(null);
 
-  if (showAdminMasterSheet) {
+  if (adminModal === 'admin') {
     return (
       <SafeAreaView style={styles.safeArea}>
         <StatusBar style="light" />
-        <MasterSheetScreen onClose={() => setShowAdminMasterSheet(false)} />
+        <AdminScreen
+          onClose={() => setAdminModal(null)}
+          onOpenMasterSheet={() => setAdminModal('mastersheet')}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  if (adminModal === 'mastersheet') {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="light" />
+        <MasterSheetScreen
+          onClose={() => setAdminModal(null)}
+          onOpenAdmin={() => setAdminModal('admin')}
+        />
       </SafeAreaView>
     );
   }
@@ -36,12 +53,12 @@ const MainShell: React.FC = () => {
         {activeTab === 'scores' ? (
           <EnterScoresScreen
             onOpenStandings={() => setActiveTab('standings')}
-            onOpenAdmin={() => setShowAdminMasterSheet(true)}
+            onOpenAdmin={() => setAdminModal('admin')}
           />
         ) : (
           <StandingsScreen
             onEnterScores={() => setActiveTab('scores')}
-            onOpenAdmin={() => setShowAdminMasterSheet(true)}
+            onOpenAdmin={() => setAdminModal('admin')}
           />
         )}
       </View>

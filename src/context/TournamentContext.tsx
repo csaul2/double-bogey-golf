@@ -44,6 +44,7 @@ interface TournamentContextValue {
   addPlayer: (name: string, initialTargetQuota: number, flight: Flight) => void;
   updatePlayer: (playerId: string, name: string, initialTargetQuota: number, flight?: Flight) => void;
   deletePlayer: (playerId: string) => void;
+  togglePlayerActive: (playerId: string) => void;
 
   // Admin: Rounds & Quotas
   addRound: (name: string, courseId: string) => void;
@@ -291,6 +292,20 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }));
   };
 
+  const togglePlayerActive = (playerId: string) => {
+    setState((prev) => ({
+      ...prev,
+      players: prev.players.map((p) => {
+        if (p.id !== playerId) return p;
+        const currentActive = p.isActive !== false;
+        return {
+          ...p,
+          isActive: !currentActive,
+        };
+      }),
+    }));
+  };
+
   const addRound = (name: string, courseId: string) => {
     setState((prev) => {
       const nextNum = prev.rounds.length > 0 ? Math.max(...prev.rounds.map((r) => r.roundNumber)) + 1 : 1;
@@ -426,6 +441,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         addPlayer,
         updatePlayer,
         deletePlayer,
+        togglePlayerActive,
         addRound,
         updateRoundStatus,
         updateRoundCourse,

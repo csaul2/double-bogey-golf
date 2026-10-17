@@ -15,7 +15,15 @@ import {
   formatSignedScore,
 } from '../utils/scoring';
 
-export const AdminScreen: React.FC = () => {
+interface AdminScreenProps {
+  onClose?: () => void;
+  onOpenMasterSheet?: () => void;
+}
+
+export const AdminScreen: React.FC<AdminScreenProps> = ({
+  onClose,
+  onOpenMasterSheet,
+}) => {
   const {
     state,
     isAdminUnlocked,
@@ -26,6 +34,7 @@ export const AdminScreen: React.FC = () => {
     addPlayer,
     updatePlayer,
     deletePlayer,
+    togglePlayerActive,
     addRound,
     updateRoundStatus,
     updateRoundCourse,
@@ -40,6 +49,7 @@ export const AdminScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
     'rounds' | 'courses' | 'players' | 'settings'
   >('rounds');
+  const [playerFilter, setPlayerFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   // Courses Editor State
   const [editingCourse, setEditingCourse] = useState<Course | null>(null);
@@ -65,6 +75,22 @@ export const AdminScreen: React.FC = () => {
     [state.rounds]
   );
 
+  const activePlayersCount = useMemo(
+    () => state.players.filter((p) => p.isActive !== false).length,
+    [state.players]
+  );
+
+  const inactivePlayersCount = useMemo(
+    () => state.players.filter((p) => p.isActive === false).length,
+    [state.players]
+  );
+
+  const displayedPlayers = useMemo(() => {
+    if (playerFilter === 'active') return state.players.filter((p) => p.isActive !== false);
+    if (playerFilter === 'inactive') return state.players.filter((p) => p.isActive === false);
+    return state.players;
+  }, [state.players, playerFilter]);
+
   if (!isAdminUnlocked) {
     return (
       <View style={styles.pinGateContainer}>
@@ -88,18 +114,25 @@ export const AdminScreen: React.FC = () => {
             }}
           />
           {pinError ? <Text style={styles.pinErrorText}>{pinError}</Text> : null}
-          <TouchableOpacity
-            style={styles.pinUnlockBtn}
-            onPress={() => {
-              if (!unlockAdmin(pinInput)) {
-                setPinError('Incorrect Admin PIN. Try ' + state.settings.adminPin);
-              } else {
-                setPinInput('');
-              }
-            }}
-          >
-            <Text style={styles.pinUnlockBtnText}>Unlock Admin Panel</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+            {onClose && (
+              <TouchableOpacity style={styles.pinCancelBtn} onPress={onClose}>
+                <Text style={styles.pinCancelBtnText}>Back</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={[styles.pinUnlockBtn, { flex: onClose ? 2 : 1 }]}
+              onPress={() => {
+                if (!unlockAdmin(pinInput)) {
+                  setPinError('Incorrect Admin PIN. Try ' + state.settings.adminPin);
+                } else {
+                  setPinInput('');
+                }
+              }}
+            >
+              <Text style={styles.pinUnlockBtnText}>Unlock Admin Panel</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     );
@@ -150,10 +183,25 @@ export const AdminScreen: React.FC = () => {
               </Text>
             </TouchableOpacity>
           ))}
+          {onOpenMasterSheet && (
+            <TouchableOpacity
+              style={styles.subNavTab}
+              onPress={onOpenMasterSheet}
+            >
+              <Text style={styles.subNavTabText}>📋 Paper Sheet</Text>
+            </TouchableOpacity>
+          )}
         </View>
-        <TouchableOpacity style={styles.lockBtn} onPress={lockAdmin}>
-          <Text style={styles.lockBtnText}>Lock</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <TouchableOpacity style={styles.lockBtn} onPress={lockAdmin}>
+            <Text style={styles.lockBtnText}>Lock</Text>
+          </TouchableOpacity>
+          {onClose && (
+            <TouchableOpacity style={styles.closeAdminBtn} onPress={onClose}>
+              <Text style={styles.closeAdminBtnText}>Done ✕</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
@@ -643,85 +691,174 @@ export const AdminScreen: React.FC = () => {
             </View>
 
             <View style={styles.sectionCard}>
-              <Text style={styles.sectionTitle}>
-                Tournament Roster ({state.players.length} Players)
-              </Text>
-              <Text style={[styles.sectionDesc, { marginBottom: 8 }]}>
-                Tap a player&apos;s Flight A / B pill to switch their flight assignment.
-              </Text>
-              {state.players.map((p) => (
-                <View key={p.id} style={styles.quotaPlayerRow}>
-                  <View style={{ flex: 1, paddingRight: 8 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Text style={styles.quotaPlayerName}>{p.name}</Text>
+              <View style={styles.rosterHeaderStrip}>
+                <Text style={styles.sectionTitle}>
+                  Tournament Roster ({state.players.length} Total)
+                </Text>
+                <Text style={styles.sectionDesc}>
+                  {activePlayersCount} Attending / Active • {inactivePlayersCount} Sitting Out (Tap badge to toggle)
+                </Text>
+              </View>
+
+              {/* Roster Filter Tabs */}
+              <View style={styles.rosterFilterRow}>
+                {(
+                  [
+                    { id: 'all', label: `All (${state.players.length})` },
+                    { id: 'active', label: `Attending (${activePlayersCount})` },
+                    { id: 'inactive', label: `Sitting Out (${inactivePlayersCount})` },
+                  ] as const
+                ).map((f) => (
+                  <TouchableOpacity
+                    key={f.id}
+                    style={[
+                      styles.rosterFilterPill,
+                      playerFilter === f.id && styles.rosterFilterPillActive,
+                    ]}
+                    onPress={() => setPlayerFilter(f.id)}
+                  >
+                    <Text
+                      style={[
+                        styles.rosterFilterPillText,
+                        playerFilter === f.id && styles.rosterFilterPillTextActive,
+                      ]}
+                    >
+                      {f.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {displayedPlayers.map((p) => {
+                const isActive = p.isActive !== false;
+                return (
+                  <View
+                    key={p.id}
+                    style={[
+                      styles.quotaPlayerRow,
+                      !isActive && styles.quotaPlayerRowInactive,
+                    ]}
+                  >
+                    <View style={{ flex: 1, paddingRight: 8 }}>
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 6,
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.quotaPlayerName,
+                            !isActive && styles.quotaPlayerNameInactive,
+                          ]}
+                        >
+                          {p.name}
+                        </Text>
+
+                        {/* Active / Sitting Out Toggle Button */}
+                        <TouchableOpacity
+                          style={[
+                            styles.activeStatusBadge,
+                            isActive
+                              ? styles.activeStatusBadgeActive
+                              : styles.activeStatusBadgeInactive,
+                          ]}
+                          onPress={() => togglePlayerActive(p.id)}
+                        >
+                          <Text
+                            style={[
+                              styles.activeStatusBadgeText,
+                              isActive
+                                ? styles.activeStatusBadgeTextActive
+                                : styles.activeStatusBadgeTextInactive,
+                            ]}
+                          >
+                            {isActive ? '● Attending' : '○ Sitting Out'}
+                          </Text>
+                        </TouchableOpacity>
+
+                        {/* Flight Toggle Badge */}
+                        <TouchableOpacity
+                          style={[
+                            styles.flightToggleBadge,
+                            p.flight === 'A'
+                              ? styles.flightToggleBadgeA
+                              : styles.flightToggleBadgeB,
+                          ]}
+                          onPress={() =>
+                            updatePlayer(
+                              p.id,
+                              p.name,
+                              p.initialTargetQuota,
+                              p.flight === 'A' ? 'B' : 'A'
+                            )
+                          }
+                        >
+                          <Text
+                            style={[
+                              styles.flightToggleBadgeText,
+                              p.flight === 'A'
+                                ? styles.flightToggleBadgeTextA
+                                : styles.flightToggleBadgeTextB,
+                            ]}
+                          >
+                            Flight {p.flight} ⇄
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+
+                      <Text style={styles.quotaFormulaSub}>
+                        {isActive
+                          ? `Starting Round 1 Target: ${p.initialTargetQuota} pts`
+                          : `Inactive • Excluded from carts & leaderboards`}
+                      </Text>
+                    </View>
+
+                    <View style={styles.quotaStepper}>
                       <TouchableOpacity
-                        style={[
-                          styles.flightToggleBadge,
-                          p.flight === 'A'
-                            ? styles.flightToggleBadgeA
-                            : styles.flightToggleBadgeB,
-                        ]}
+                        style={styles.quotaStepBtn}
                         onPress={() =>
                           updatePlayer(
                             p.id,
                             p.name,
-                            p.initialTargetQuota,
-                            p.flight === 'A' ? 'B' : 'A'
+                            Math.max(1, p.initialTargetQuota - 1),
+                            p.flight
                           )
                         }
                       >
-                        <Text
-                          style={[
-                            styles.flightToggleBadgeText,
-                            p.flight === 'A'
-                              ? styles.flightToggleBadgeTextA
-                              : styles.flightToggleBadgeTextB,
-                          ]}
-                        >
-                          Flight {p.flight} ⇄
-                        </Text>
+                        <Text style={styles.quotaStepBtnText}>−</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.quotaValueText}>{p.initialTargetQuota}</Text>
+                      <TouchableOpacity
+                        style={styles.quotaStepBtn}
+                        onPress={() =>
+                          updatePlayer(
+                            p.id,
+                            p.name,
+                            p.initialTargetQuota + 1,
+                            p.flight
+                          )
+                        }
+                      >
+                        <Text style={styles.quotaStepBtnText}>+</Text>
                       </TouchableOpacity>
                     </View>
-                    <Text style={styles.quotaFormulaSub}>
-                      Starting Round 1 Target: {p.initialTargetQuota} pts
-                    </Text>
-                  </View>
 
-                  <View style={styles.quotaStepper}>
                     <TouchableOpacity
-                      style={styles.quotaStepBtn}
-                      onPress={() =>
-                        updatePlayer(
-                          p.id,
-                          p.name,
-                          Math.max(1, p.initialTargetQuota - 1),
-                          p.flight
-                        )
-                      }
+                      style={{ marginLeft: 8 }}
+                      onPress={() => deletePlayer(p.id)}
                     >
-                      <Text style={styles.quotaStepBtnText}>−</Text>
-                    </TouchableOpacity>
-                    <Text style={styles.quotaValueText}>{p.initialTargetQuota}</Text>
-                    <TouchableOpacity
-                      style={styles.quotaStepBtn}
-                      onPress={() =>
-                        updatePlayer(p.id, p.name, p.initialTargetQuota + 1, p.flight)
-                      }
-                    >
-                      <Text style={styles.quotaStepBtnText}>+</Text>
+                      <Text
+                        style={{ color: '#EF4444', fontSize: 11, fontWeight: '700' }}
+                      >
+                        Remove
+                      </Text>
                     </TouchableOpacity>
                   </View>
-
-                  <TouchableOpacity
-                    style={{ marginLeft: 10 }}
-                    onPress={() => deletePlayer(p.id)}
-                  >
-                    <Text style={{ color: '#EF4444', fontSize: 12, fontWeight: '700' }}>
-                      Remove
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
+                );
+              })}
             </View>
           </View>
         )}
@@ -901,10 +1038,21 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',
-    marginTop: 14,
   },
   pinUnlockBtnText: {
     color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 15,
+  },
+  pinCancelBtn: {
+    flex: 1,
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  pinCancelBtnText: {
+    color: '#475569',
     fontWeight: '800',
     fontSize: 15,
   },
@@ -942,7 +1090,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   lockBtn: {
-    marginLeft: 8,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 6,
@@ -950,8 +1097,19 @@ const styles = StyleSheet.create({
   },
   lockBtnText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#991B1B',
+  },
+  closeAdminBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: '#064E3B',
+  },
+  closeAdminBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   scroll: {
     flex: 1,
@@ -1342,5 +1500,60 @@ const styles = StyleSheet.create({
   percentSubLabel: {
     fontSize: 11,
     color: '#64748B',
+  },
+  rosterHeaderStrip: {
+    marginBottom: 8,
+  },
+  rosterFilterRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 12,
+  },
+  rosterFilterPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+  },
+  rosterFilterPillActive: {
+    backgroundColor: '#064E3B',
+  },
+  rosterFilterPillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  rosterFilterPillTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+  },
+  quotaPlayerRowInactive: {
+    opacity: 0.65,
+    backgroundColor: '#F8FAFC',
+  },
+  quotaPlayerNameInactive: {
+    color: '#64748B',
+    textDecorationLine: 'line-through',
+  },
+  activeStatusBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 5,
+  },
+  activeStatusBadgeActive: {
+    backgroundColor: '#DCFCE7',
+  },
+  activeStatusBadgeInactive: {
+    backgroundColor: '#FEF3C7',
+  },
+  activeStatusBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  activeStatusBadgeTextActive: {
+    color: '#15803D',
+  },
+  activeStatusBadgeTextInactive: {
+    color: '#B45309',
   },
 });

@@ -17,9 +17,13 @@ import {
 
 interface MasterSheetScreenProps {
   onClose: () => void;
+  onOpenAdmin?: () => void;
 }
 
-export const MasterSheetScreen: React.FC<MasterSheetScreenProps> = ({ onClose }) => {
+export const MasterSheetScreen: React.FC<MasterSheetScreenProps> = ({
+  onClose,
+  onOpenAdmin,
+}) => {
   const {
     state,
     isAdminUnlocked,
@@ -98,9 +102,16 @@ export const MasterSheetScreen: React.FC<MasterSheetScreenProps> = ({ onClose })
             {state.settings.tournamentName} • {state.settings.targetAdjustmentPercent}% Rule
           </Text>
         </View>
-        <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
-          <Text style={styles.doneBtnText}>Close Sheet</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          {onOpenAdmin && (
+            <TouchableOpacity style={styles.manageAdminBtn} onPress={onOpenAdmin}>
+              <Text style={styles.manageAdminBtnText}>⚙️ Manage Players</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.doneBtn} onPress={onClose}>
+            <Text style={styles.doneBtnText}>Close Sheet</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Flight Picker + One-Click Adjustments Action */}
@@ -358,6 +369,17 @@ const styles = StyleSheet.create({
     color: '#A7F3D0',
     fontSize: 12,
     marginTop: 2,
+  },
+  manageAdminBtn: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+  },
+  manageAdminBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 12,
   },
   doneBtn: {
     backgroundColor: '#10B981',

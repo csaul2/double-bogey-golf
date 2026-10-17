@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS public.players (
   flight TEXT NOT NULL CHECK (flight IN ('A', 'B')),
   avatar_color TEXT DEFAULT '#059669',
   initial_target_quota INT NOT NULL DEFAULT 27,
+  is_active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -41,7 +41,7 @@ export const StandingsScreen: React.FC<StandingsScreenProps> = ({
   );
 
   const flightPlayers = useMemo(
-    () => state.players.filter((p) => p.flight === activeFlight),
+    () => state.players.filter((p) => p.flight === activeFlight && p.isActive !== false),
     [state.players, activeFlight]
   );
 
