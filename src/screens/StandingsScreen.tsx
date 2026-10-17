@@ -111,9 +111,6 @@ export const StandingsScreen: React.FC<StandingsScreenProps> = ({
           </View>
         </View>
         <View style={styles.headerRightButtons}>
-          <TouchableOpacity style={styles.scoreNavBtn} onPress={onEnterScores}>
-            <Text style={styles.scoreNavBtnText}>⛳ Enter Scores</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={styles.adminGearBtn} onPress={onOpenAdmin}>
             <Text style={styles.adminGearText}>⚙️</Text>
           </TouchableOpacity>

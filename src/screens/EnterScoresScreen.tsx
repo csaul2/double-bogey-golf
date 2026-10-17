@@ -274,9 +274,6 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
           </View>
         </View>
         <View style={styles.headerButtons}>
-          <TouchableOpacity style={styles.standingsNavBtn} onPress={onOpenStandings}>
-            <Text style={styles.standingsNavBtnText}>🏆 Standings</Text>
-          </TouchableOpacity>
           <TouchableOpacity style={styles.adminGearBtn} onPress={onOpenAdmin}>
             <Text style={styles.adminGearText}>⚙️</Text>
           </TouchableOpacity>
