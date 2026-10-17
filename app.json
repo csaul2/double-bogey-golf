@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "golf-tournament-app",
-    "slug": "golf-tournament-app",
+    "name": "DBT Golf",
+    "slug": "dbt-golf",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

@@ -196,7 +196,7 @@ const SEEDED_GROUPS = [
 export function getInitialTournamentState(): TournamentState {
   return {
     settings: {
-      tournamentName: '26th Annual Double Bogey Tournament',
+      tournamentName: '26th Annual DBT Golf Tournament',
       subtitle: 'Official Individual Scoring',
       tournamentPin: '1926',
       adminPin: '9999',
