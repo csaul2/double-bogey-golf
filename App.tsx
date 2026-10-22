@@ -1,5 +1,6 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   SafeAreaView,
   StyleSheet,
@@ -8,38 +9,118 @@ import {
   View,
 } from 'react-native';
 import { TournamentProvider, useTournament } from './src/context/TournamentContext';
-import { AdminScreen } from './src/screens/AdminScreen';
+import { AdminScreen, AdminTab } from './src/screens/AdminScreen';
 import { EnterScoresScreen } from './src/screens/EnterScoresScreen';
 import { MasterSheetScreen } from './src/screens/MasterSheetScreen';
 import { StandingsScreen } from './src/screens/StandingsScreen';
+import { StartMenuScreen } from './src/screens/StartMenuScreen';
 
 type Tab = 'scores' | 'standings';
-type AdminModal = 'admin' | 'mastersheet' | null;
+type AdminModal =
+  | { type: 'admin'; initialTab?: AdminTab; skipPinGate?: boolean }
+  | { type: 'mastersheet' }
+  | null;
 
 const MainShell: React.FC = () => {
+  const { state, updateRoundStatus } = useTournament();
+
+  const hasActiveRound = state.rounds.some((r) => r.status === 'active');
+
+  const [showStartMenu, setShowStartMenu] = useState<boolean>(!hasActiveRound);
+  const [standingsPreviewFromMenu, setStandingsPreviewFromMenu] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<Tab>('scores');
+  const [isPickingCart, setIsPickingCart] = useState<boolean>(true);
   const [adminModal, setAdminModal] = useState<AdminModal>(null);
 
-  if (adminModal === 'admin') {
+  // Whenever no round is active (e.g. initial load or after advancing/completing a round),
+  // automatically return to the Start Menu.
+  useEffect(() => {
+    if (!hasActiveRound && !standingsPreviewFromMenu) {
+      setShowStartMenu(true);
+    }
+  }, [hasActiveRound, standingsPreviewFromMenu]);
+
+  const handleStartRoundFromMenu = async (roundId: string) => {
+    // Clear any cached cart lock for this round so the user is prompted to select their cart
+    await AsyncStorage.removeItem(`@dbt_locked_cart_${roundId}`);
+    state.rounds.forEach((r) => {
+      if (r.id === roundId && r.status !== 'active') {
+        updateRoundStatus(r.id, 'active');
+      } else if (r.id !== roundId && r.status === 'active') {
+        updateRoundStatus(r.id, 'upcoming');
+      }
+    });
+    setIsPickingCart(true);
+    setStandingsPreviewFromMenu(false);
+    setActiveTab('scores');
+    setShowStartMenu(false);
+  };
+
+  if (adminModal?.type === 'admin') {
     return (
       <SafeAreaView style={styles.safeArea}>
         <StatusBar style="light" />
         <AdminScreen
+          initialTab={adminModal.initialTab}
+          skipPinGate={adminModal.skipPinGate}
           onClose={() => setAdminModal(null)}
-          onOpenMasterSheet={() => setAdminModal('mastersheet')}
+          onOpenMasterSheet={() => setAdminModal({ type: 'mastersheet' })}
         />
       </SafeAreaView>
     );
   }
 
-  if (adminModal === 'mastersheet') {
+  if (adminModal?.type === 'mastersheet') {
     return (
       <SafeAreaView style={styles.safeArea}>
         <StatusBar style="light" />
         <MasterSheetScreen
           onClose={() => setAdminModal(null)}
-          onOpenAdmin={() => setAdminModal('admin')}
+          onOpenAdmin={() => setAdminModal({ type: 'admin', skipPinGate: showStartMenu })}
         />
+      </SafeAreaView>
+    );
+  }
+
+  // Launch to Start Menu when loaded and a round is not in progress (or user returned to menu)
+  if (showStartMenu) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="light" />
+        <StartMenuScreen
+          onStartRound={handleStartRoundFromMenu}
+          onOpenAdminTab={(tab) =>
+            setAdminModal({ type: 'admin', initialTab: tab, skipPinGate: true })
+          }
+          onOpenStandings={() => {
+            setStandingsPreviewFromMenu(true);
+            setShowStartMenu(false);
+            setActiveTab('standings');
+          }}
+          onOpenMasterSheet={() => setAdminModal({ type: 'mastersheet' })}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  // If viewing Standings preview directly from the Start Menu before a round starts
+  if (standingsPreviewFromMenu && !hasActiveRound) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar style="light" />
+        <View style={styles.content}>
+          <StandingsScreen
+            onEnterScores={() => {
+              setStandingsPreviewFromMenu(false);
+              setShowStartMenu(true);
+            }}
+            onOpenAdmin={() => setAdminModal({ type: 'admin', skipPinGate: true })}
+            onBackToMenu={() => {
+              setStandingsPreviewFromMenu(false);
+              setShowStartMenu(true);
+            }}
+          />
+        </View>
       </SafeAreaView>
     );
   }
@@ -48,56 +129,60 @@ const MainShell: React.FC = () => {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="light" />
 
-      {/* Main View: Either Enter Scores or Standings */}
+      {/* Main View: Either Enter Scores (with Cart Picker first) or Standings */}
       <View style={styles.content}>
         {activeTab === 'scores' ? (
           <EnterScoresScreen
             onOpenStandings={() => setActiveTab('standings')}
-            onOpenAdmin={() => setAdminModal('admin')}
+            onOpenAdmin={() => setAdminModal({ type: 'admin' })}
+            onBackToMenu={() => setShowStartMenu(true)}
+            onCartPickingChange={setIsPickingCart}
           />
         ) : (
           <StandingsScreen
             onEnterScores={() => setActiveTab('scores')}
-            onOpenAdmin={() => setAdminModal('admin')}
+            onOpenAdmin={() => setAdminModal({ type: 'admin' })}
           />
         )}
       </View>
 
-      {/* Simplified 2-Tab Bottom Navigation */}
-      <View style={styles.bottomBar}>
-        <TouchableOpacity
-          style={[styles.bottomTab, activeTab === 'scores' && styles.bottomTabActive]}
-          onPress={() => setActiveTab('scores')}
-        >
-          <Text style={styles.tabIcon}>⛳</Text>
-          <Text
-            style={[
-              styles.tabLabel,
-              activeTab === 'scores' && styles.tabLabelActive,
-            ]}
+      {/* Show In-Round Bottom Navigation only after the user has selected their cart */}
+      {!isPickingCart && (
+        <View style={styles.bottomBar}>
+          <TouchableOpacity
+            style={[styles.bottomTab, activeTab === 'scores' && styles.bottomTabActive]}
+            onPress={() => setActiveTab('scores')}
           >
-            Enter Scores
-          </Text>
-        </TouchableOpacity>
+            <Text style={styles.tabIcon}>⛳</Text>
+            <Text
+              style={[
+                styles.tabLabel,
+                activeTab === 'scores' && styles.tabLabelActive,
+              ]}
+            >
+              Enter Scores
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.bottomTab,
-            activeTab === 'standings' && styles.bottomTabActive,
-          ]}
-          onPress={() => setActiveTab('standings')}
-        >
-          <Text style={styles.tabIcon}>🏆</Text>
-          <Text
+          <TouchableOpacity
             style={[
-              styles.tabLabel,
-              activeTab === 'standings' && styles.tabLabelActive,
+              styles.bottomTab,
+              activeTab === 'standings' && styles.bottomTabActive,
             ]}
+            onPress={() => setActiveTab('standings')}
           >
-            Standings (A/B)
-          </Text>
-        </TouchableOpacity>
-      </View>
+            <Text style={styles.tabIcon}>🏆</Text>
+            <Text
+              style={[
+                styles.tabLabel,
+                activeTab === 'standings' && styles.tabLabelActive,
+              ]}
+            >
+              Standings (A/B)
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 };

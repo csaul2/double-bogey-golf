@@ -16,11 +16,15 @@ import { calculateHolePoints, calculatePlayerRoundStats, formatSignedScore } fro
 interface EnterScoresScreenProps {
   onOpenStandings: () => void;
   onOpenAdmin: () => void;
+  onBackToMenu?: () => void;
+  onCartPickingChange?: (isPicking: boolean) => void;
 }
 
 export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
   onOpenStandings,
   onOpenAdmin,
+  onBackToMenu,
+  onCartPickingChange,
 }) => {
   const {
     state,
@@ -88,6 +92,10 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
     () => roundGroups.find((g) => g.id === activeGroupId) || roundGroups[0],
     [roundGroups, activeGroupId]
   );
+
+  useEffect(() => {
+    onCartPickingChange?.(isPickingCart || !activeGroup);
+  }, [isPickingCart, activeGroup, onCartPickingChange]);
 
   const groupPlayers: Player[] = useMemo(() => {
     if (!activeGroup) return [];
@@ -290,6 +298,15 @@ export const EnterScoresScreen: React.FC<EnterScoresScreenProps> = ({
       {isPickingCart || !activeGroup ? (
         <ScrollView style={styles.scroll} contentContainerStyle={styles.cartPickerContent}>
           <View style={styles.preRoundSetupHeader}>
+            {onBackToMenu && (
+              <TouchableOpacity
+                style={styles.backToMenuBtn}
+                onPress={onBackToMenu}
+                activeOpacity={0.75}
+              >
+                <Text style={styles.backToMenuBtnText}>‹ Back to Start Menu</Text>
+              </TouchableOpacity>
+            )}
             <Text style={styles.preRoundSetupTitle}>Select Your Cart</Text>
             <Text style={styles.preRoundSetupSubtitle}>
               {activeRound?.name} • Choose your foursome to lock this device into scoring.
@@ -1987,5 +2004,18 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '800',
     fontSize: 13,
+  },
+  backToMenuBtn: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#E2E8F0',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  backToMenuBtnText: {
+    color: '#1E293B',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

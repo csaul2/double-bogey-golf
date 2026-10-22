@@ -152,7 +152,7 @@ function createSeedRounds(): Round[] {
     roundNumber: 1,
     name: roundNames[0],
     courseId: courses[0].id,
-    status: 'active',
+    status: 'upcoming',
     targetQuotas: r1Quotas,
     scores: {},
   };

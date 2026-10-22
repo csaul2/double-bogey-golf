@@ -524,7 +524,7 @@ export const TournamentProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           return { ...r, status: 'completed' as RoundStatus };
         }
         if (nextRound && r.id === nextRound.id) {
-          return { ...r, status: 'active' as RoundStatus, targetQuotas: newQuotas };
+          return { ...r, status: 'upcoming' as RoundStatus, targetQuotas: newQuotas };
         }
         return r;
       });

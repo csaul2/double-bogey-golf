@@ -15,12 +15,18 @@ import {
   formatSignedScore,
 } from '../utils/scoring';
 
+export type AdminTab = 'rounds' | 'pairings' | 'ctp' | 'courses' | 'players' | 'settings';
+
 interface AdminScreenProps {
+  initialTab?: AdminTab;
+  skipPinGate?: boolean;
   onClose?: () => void;
   onOpenMasterSheet?: () => void;
 }
 
 export const AdminScreen: React.FC<AdminScreenProps> = ({
+  initialTab = 'rounds',
+  skipPinGate = false,
   onClose,
   onOpenMasterSheet,
 }) => {
@@ -53,17 +59,25 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
 
   const [pinInput, setPinInput] = useState<string>('');
   const [pinError, setPinError] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<
-    'rounds' | 'pairings' | 'ctp' | 'courses' | 'players' | 'settings'
-  >('rounds');
+  const [activeTab, setActiveTab] = useState<AdminTab>(initialTab);
   const [playerFilter, setPlayerFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   // Pairings & Carts State
   const [pairingRoundId, setPairingRoundId] = useState<string>(() => {
-    return state.rounds.find((r) => r.status === 'active')?.id || state.rounds[0]?.id || '';
+    return (
+      state.rounds.find((r) => r.status === 'active')?.id ||
+      state.rounds.find((r) => r.status === 'upcoming')?.id ||
+      state.rounds[0]?.id ||
+      ''
+    );
   });
   const [adminCtpRoundId, setAdminCtpRoundId] = useState<string>(() => {
-    return state.rounds.find((r) => r.status === 'active')?.id || state.rounds[0]?.id || '';
+    return (
+      state.rounds.find((r) => r.status === 'active')?.id ||
+      state.rounds.find((r) => r.status === 'upcoming')?.id ||
+      state.rounds[0]?.id ||
+      ''
+    );
   });
   const [newCartName, setNewCartName] = useState<string>('');
   const [playerPickerCartId, setPlayerPickerCartId] = useState<string | null>(null);
@@ -108,7 +122,7 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
     return state.players;
   }, [state.players, playerFilter]);
 
-  if (!isAdminUnlocked) {
+  if (!isAdminUnlocked && !skipPinGate) {
     return (
       <View style={styles.pinGateContainer}>
         <View style={styles.pinCard}>

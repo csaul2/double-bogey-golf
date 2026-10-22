@@ -20,11 +20,13 @@ import {
 interface StandingsScreenProps {
   onEnterScores: () => void;
   onOpenAdmin: () => void;
+  onBackToMenu?: () => void;
 }
 
 export const StandingsScreen: React.FC<StandingsScreenProps> = ({
   onEnterScores,
   onOpenAdmin,
+  onBackToMenu,
 }) => {
   const { state, syncStatus, pendingSyncCount, manualSync, advanceRound } = useTournament();
   const [activeFlight, setActiveFlight] = useState<Flight>('A');
@@ -111,6 +113,11 @@ export const StandingsScreen: React.FC<StandingsScreenProps> = ({
           </View>
         </View>
         <View style={styles.headerRightButtons}>
+          {onBackToMenu && (
+            <TouchableOpacity style={styles.scoreNavBtn} onPress={onBackToMenu}>
+              <Text style={styles.scoreNavBtnText}>‹ Start Menu</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={styles.adminGearBtn} onPress={onOpenAdmin}>
             <Text style={styles.adminGearText}>⚙️</Text>
           </TouchableOpacity>
